@@ -22,6 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include <string.h>
 #include <stdarg.h>
 /* USER CODE END Includes */
 
@@ -62,7 +64,7 @@ static void MX_USART3_UART_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-void printf(const char *fmt, ...) {
+int printf(const char *fmt, ...) {
   static char buffer[256];
   va_list args;
   va_start(args, fmt);
@@ -71,33 +73,28 @@ void printf(const char *fmt, ...) {
 
   int len = strlen(buffer);
   HAL_UART_Transmit(&huart3, (uint8_t*)buffer, len, -1);
-
+  return len;
 }
 
 void writeFile(char* volume)
 {
-    // FatFs variables
-    FATFS FatFs;    // File system handle
-    FIL fil;        // File handle
-    FRESULT fres;   // Result after operations
+    FATFS FatFs;
+    FIL fil;
+    FRESULT fres;
 
-    // Mount the file system on the specified volume
     fres = f_mount(&FatFs, volume, 1); // 1 = mount immediately
     if (fres != FR_OK) {
-        // Handle mount error
         printf("Failed to mount volume %s. Error: %d\r\n", volume, fres);
         return;
     }
 
-    // Get statistics from the SD card
     DWORD free_clusters, free_sectors, total_sectors;
     FATFS* getFreeFs;
 
-    fres = f_getfree(volume, &free_clusters, &getFreeFs); // Use volume-specific path
+    fres = f_getfree(volume, &free_clusters, &getFreeFs);
     if (fres != FR_OK) {
-        // Handle error
         printf("Failed to get free space for volume %s. Error: %d\r\n", volume, fres);
-        f_mount(NULL, volume, 0); // Unmount before returning
+        f_mount(NULL, volume, 0);
         return;
     }
 
@@ -108,27 +105,27 @@ void writeFile(char* volume)
            volume, total_sectors / 2, free_sectors / 2);
 
     // Write to a file
-    BYTE writeBuf[] = "A new file is made! Both Cards."; // Buffer to write
+    BYTE writeBuf[] = "A new file is made! Both Cards.";
     char filePath[64];
-    snprintf(filePath, sizeof(filePath), "%scards.txt", volume); // Specify volume in path
+    snprintf(filePath, sizeof(filePath), "%sfcards.txt", volume);
 
-    fres = f_open(&fil, filePath, FA_WRITE | FA_CREATE_ALWAYS); // Create or overwrite
+    fres = f_open(&fil, filePath, FA_WRITE | FA_CREATE_ALWAYS);
     if (fres != FR_OK) {
         printf("Failed to open file on volume %s. Error: %d\r\n", volume, fres);
-        f_mount(NULL, volume, 0); // Unmount before returning
+        f_mount(NULL, volume, 0);
         return;
     }
 
     UINT bytesWritten;
-    fres = f_write(&fil, writeBuf, sizeof(writeBuf) - 1, &bytesWritten); // Exclude null-terminator
+    fres = f_write(&fil, writeBuf, sizeof(writeBuf) - 1, &bytesWritten);
     if (fres == FR_OK) {
         printf("Successfully wrote %u bytes to %s\r\n", bytesWritten, filePath);
     } else {
         printf("Failed to write to file. Error: %d\r\n", fres);
     }
 
-    f_close(&fil); // Close the file
-//    f_mount(NULL, volume, 0); // Unmount the drive
+    f_close(&fil);
+    f_mount(NULL, volume, 0);
 }
 
 /* USER CODE END 0 */
@@ -170,10 +167,11 @@ int main(void)
   MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
 
-  writeFile("0:");
-  extern BYTE g_drv;
-  g_drv = 1;
-  writeFile("1:");
+  for(int i = 0; i < _VOLUMES; i++)
+  {
+	  writeFile(USERPath[i]);
+  }
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

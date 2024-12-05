@@ -174,7 +174,6 @@ int wait_ready (	/* 1:Ready, 0:Timeout */
 static
 void despiselect (void)
 {
-	// printf("g_drv %d\r\n", g_drv);
 	if(!g_drv)
 	{
 		CS_HIGH();		/* Set CS# high */
@@ -196,7 +195,6 @@ void despiselect (void)
 static
 int spiselect (void)	/* 1:OK, 0:Timeout */
 {
-	// printf("g_drv %d\r\n", g_drv);
 	if(!g_drv)
 	{
 		CS_LOW();		/* Set CS# low */
@@ -342,7 +340,7 @@ inline DSTATUS USER_SPI_initialize (
 	BYTE n, cmd, ty, ocr[4];
 
 //	if (drv != 0) return STA_NOINIT;		/* Supports only drive 0 */
-	// g_drv = drv;
+	g_drv = drv;
 	//assume SPI already init init_spi();	/* Initialize SPI */
 
 	if (Stat & STA_NODISK) return Stat;	/* Is card existing in the soket? */
@@ -397,7 +395,7 @@ inline DSTATUS USER_SPI_status (
 )
 {
 //	if (drv) return STA_NOINIT;		/* Supports only drive 0 */
-	// g_drv = drv;
+	g_drv = drv;
 
 	return Stat;	/* Return disk status */
 }
@@ -417,7 +415,7 @@ inline DRESULT USER_SPI_read (
 {
 //	if (drv || !count) return RES_PARERR;		/* Check parameter */
 	if (!count) return RES_PARERR;		/* Check parameter */
-	// g_drv = drv;
+	g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
 	if (!(CardType & CT_BLOCK)) sector *= 512;	/* LBA ot BA conversion (byte addressing cards) */
@@ -458,7 +456,7 @@ inline DRESULT USER_SPI_write (
 {
 //	if (drv || !count) return RES_PARERR;		/* Check parameter */
 	if (!count) return RES_PARERR;		/* Check parameter */
-	// g_drv = drv;
+	g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check drive status */
 	if (Stat & STA_PROTECT) return RES_WRPRT;	/* Check write protect */
 
@@ -504,7 +502,7 @@ inline DRESULT USER_SPI_ioctl (
 
 
 //	if (drv) return RES_PARERR;					/* Check parameter */
-	// g_drv = drv;
+	g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
 	res = RES_ERROR;
