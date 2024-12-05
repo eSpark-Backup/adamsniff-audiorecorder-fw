@@ -2687,7 +2687,7 @@ bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed) {
 
     /* Initialise file system */
 
-    if (f_mount(&fatfs, "", 1) != FR_OK) {
+    if (f_mount(&fatfs, "0:", 1) != FR_OK) {
         return false;
     }
 

@@ -67,16 +67,16 @@ void      MICROSD_Deinit(void);
 
 void      MICROSD_DoubleSpiClkFast(void);
 
-int       MICROSD_Select(void);
-void      MICROSD_Deselect(void);
+int       MICROSD_Select(BYTE drv);
+void      MICROSD_Deselect(BYTE drv);
 
 void      MICROSD_PowerOn(void);
-void      MICROSD_PowerOff(void);
+void      MICROSD_PowerOff(BYTE drv);
 
 int       MICROSD_BlockRx(uint8_t *buff, uint32_t btr);
 int       MICROSD_BlockTx(const uint8_t *buff, uint8_t token);
 
-uint8_t   MICROSD_SendCmd(uint8_t cmd, DWORD arg);
+uint8_t   MICROSD_SendCmd(BYTE drv, uint8_t cmd, DWORD arg);
 uint8_t   MICROSD_XferSpi(uint8_t data);
 
 void      MICROSD_SpiClkFast(void);

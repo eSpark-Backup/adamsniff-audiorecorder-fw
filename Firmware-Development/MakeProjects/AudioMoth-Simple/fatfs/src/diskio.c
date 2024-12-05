@@ -33,7 +33,7 @@ DSTATUS disk_initialize (
 {
   BYTE n, cmd, ty, ocr[4];
 
-  if (drv) return STA_NOINIT;                   /* Supports only single drive */
+//   if (drv) return STA_NOINIT;                   /* Supports only single drive */
   if (stat & STA_NODISK) return stat;           /* No card in the socket */
 
   MICROSD_PowerOn();                            /* Force socket power on */
@@ -41,36 +41,36 @@ DSTATUS disk_initialize (
   for (n = 10; n; n--) MICROSD_XferSpi(0xff);   /* 80 dummy clocks */
 
   ty = 0;
-  if (MICROSD_SendCmd(CMD0, 0) == 1) {          /* Enter Idle state */
+  if (MICROSD_SendCmd(drv, CMD0, 0) == 1) {          /* Enter Idle state */
     MICROSD_TimeOutSet(1000);                   /* Initialization timeout of 1000 msec */
-    if (MICROSD_SendCmd(CMD8, 0x1AA) == 1) {    /* SDv2? */
+    if (MICROSD_SendCmd(drv, CMD8, 0x1AA) == 1) {    /* SDv2? */
       for (n = 0; n < 4; n++) ocr[n] = MICROSD_XferSpi(0xff); /* Get trailing return value of R7 resp */
       if (ocr[2] == 0x01 && ocr[3] == 0xAA) {   /* The card can work at vdd range of 2.7-3.6V */
-        while (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(ACMD41, 0x40000000)); /* Wait for leaving idle state (ACMD41 with HCS bit) */
-        if (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(CMD58, 0) == 0) {        /* Check CCS bit in the OCR */
+        while (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(drv, ACMD41, 0x40000000)); /* Wait for leaving idle state (ACMD41 with HCS bit) */
+        if (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(drv, CMD58, 0) == 0) {        /* Check CCS bit in the OCR */
           for (n = 0; n < 4; n++) ocr[n] = MICROSD_XferSpi(0xff);
           ty = (ocr[0] & 0x40) ? CT_SD2|CT_BLOCK : CT_SD2; /* SDv2 */
         }
       }
     } else {                                    /* SDv1 or MMCv3 */
-      if (MICROSD_SendCmd(ACMD41, 0) <= 1) {
+      if (MICROSD_SendCmd(drv, ACMD41, 0) <= 1) {
         ty = CT_SD1; cmd = ACMD41;              /* SDv1 */
       } else {
         ty = CT_MMC; cmd = CMD1;                /* MMCv3 */
       }
-      while (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(cmd, 0));     /* Wait for leaving idle state */
-      if (MICROSD_TimeOutElapsed() || MICROSD_SendCmd(CMD16, 512) != 0) /* Set read/write block length to 512 */
+      while (!MICROSD_TimeOutElapsed() && MICROSD_SendCmd(drv, cmd, 0));     /* Wait for leaving idle state */
+      if (MICROSD_TimeOutElapsed() || MICROSD_SendCmd(drv, CMD16, 512) != 0) /* Set read/write block length to 512 */
         ty = 0;
     }
   }
   CardType = ty;
-  MICROSD_Deselect();
+  MICROSD_Deselect(drv);
 
   if (ty) {                                     /* Initialization succeded */
     stat &= ~STA_NOINIT;                        /* Clear STA_NOINIT */
     MICROSD_SpiClkFast();                       /* Speed up SPI clock. */
   } else {                                      /* Initialization failed */
-    MICROSD_PowerOff();
+    MICROSD_PowerOff(drv);
     stat |= STA_NOINIT;                         /* Set STA_NOINIT */
   }
 
@@ -85,7 +85,7 @@ DSTATUS disk_status (
   BYTE drv                        /* Physical drive nmuber (0) */
 )
 {
-  if (drv) return STA_NOINIT;     /* Supports only single drive */
+//   if (drv) return STA_NOINIT;     /* Supports only single drive */
   return stat;
 }
 
@@ -100,26 +100,27 @@ DRESULT disk_read (
   BYTE count      /* Sector count (1..255) */
 )
 {
-  if (drv || !count) return RES_PARERR;
+//   if (drv || !count) return RES_PARERR;
+  if (!count) return RES_PARERR;
   if (stat & STA_NOINIT) return RES_NOTRDY;
 
   if (!(CardType & CT_BLOCK)) sector *= 512;  /* Convert to byte address if needed */
 
   if (count == 1) {                           /* Single block read */
-    if ((MICROSD_SendCmd(CMD17, sector) == 0) /* READ_SINGLE_BLOCK */
+    if ((MICROSD_SendCmd(drv, CMD17, sector) == 0) /* READ_SINGLE_BLOCK */
       && MICROSD_BlockRx(buff, 512))
       count = 0;
   }
   else {                                        /* Multiple block read */
-    if (MICROSD_SendCmd(CMD18, sector) == 0) {  /* READ_MULTIPLE_BLOCK */
+    if (MICROSD_SendCmd(drv, CMD18, sector) == 0) {  /* READ_MULTIPLE_BLOCK */
       do {
         if (!MICROSD_BlockRx(buff, 512)) break;
         buff += 512;
       } while (--count);
-      MICROSD_SendCmd(CMD12, 0);                /* STOP_TRANSMISSION */
+      MICROSD_SendCmd(drv, CMD12, 0);                /* STOP_TRANSMISSION */
     }
   }
-  MICROSD_Deselect();
+  MICROSD_Deselect(drv);
 
   return count ? RES_ERROR : RES_OK;
 }
@@ -136,20 +137,21 @@ DRESULT disk_write (
   BYTE count          /* Sector count (1..255) */
 )
 {
-  if (drv || !count) return RES_PARERR;
+//   if (drv || !count) return RES_PARERR;
+  if (!count) return RES_PARERR;
   if (stat & STA_NOINIT) return RES_NOTRDY;
   if (stat & STA_PROTECT) return RES_WRPRT;
 
   if (!(CardType & CT_BLOCK)) sector *= 512;  /* Convert to byte address if needed */
 
   if (count == 1) {                           /* Single block write */
-    if ((MICROSD_SendCmd(CMD24, sector) == 0) /* WRITE_BLOCK */
+    if ((MICROSD_SendCmd(drv, CMD24, sector) == 0) /* WRITE_BLOCK */
       && MICROSD_BlockTx(buff, 0xFE))
       count = 0;
   }
   else {                                      /* Multiple block write */
-    if (CardType & CT_SDC) MICROSD_SendCmd(ACMD23, count);
-    if (MICROSD_SendCmd(CMD25, sector) == 0) {/* WRITE_MULTIPLE_BLOCK */
+    if (CardType & CT_SDC) MICROSD_SendCmd(drv, ACMD23, count);
+    if (MICROSD_SendCmd(drv, CMD25, sector) == 0) {/* WRITE_MULTIPLE_BLOCK */
       do {
         if (!MICROSD_BlockTx(buff, 0xFC)) break;
         buff += 512;
@@ -158,7 +160,7 @@ DRESULT disk_write (
         count = 1;
     }
   }
-  MICROSD_Deselect();
+  MICROSD_Deselect(drv);
 
   return count ? RES_ERROR : RES_OK;
 }
@@ -179,14 +181,14 @@ DRESULT disk_ioctl (
   DWORD csize;
 
 
-  if (drv) return RES_PARERR;
+//   if (drv) return RES_PARERR;
   if (stat & STA_NOINIT) return RES_NOTRDY;
 
   res = RES_ERROR;
   switch (ctrl) {
     case CTRL_SYNC :                /* Flush dirty buffer if present */
-      if (MICROSD_Select()) {
-        MICROSD_Deselect();
+      if (MICROSD_Select(drv)) {
+        MICROSD_Deselect(drv);
         res = RES_OK;
       }
       break;
@@ -197,7 +199,7 @@ DRESULT disk_ioctl (
       break;
 
     case GET_SECTOR_COUNT :         /* Get number of sectors on the disk (WORD) */
-      if ((MICROSD_SendCmd(CMD9, 0) == 0) && MICROSD_BlockRx(csd, 16)) {
+      if ((MICROSD_SendCmd(drv, CMD9, 0) == 0) && MICROSD_BlockRx(csd, 16)) {
         if ((csd[0] >> 6) == 1) {                     /* SDv2? */
           csize = csd[9] + ((WORD)csd[8] << 8) + 1;
           *(DWORD*)buff = (DWORD)csize << 10;
@@ -217,7 +219,7 @@ DRESULT disk_ioctl (
 
     case GET_BLOCK_SIZE :           /* Get erase block size in unit of sectors (DWORD) */
       if (CardType & CT_SD2) {      /* SDv2? */
-        if (MICROSD_SendCmd(ACMD13, 0) == 0) {    /* Read SD status */
+        if (MICROSD_SendCmd(drv, ACMD13, 0) == 0) {    /* Read SD status */
           MICROSD_XferSpi(0xff);
           if (MICROSD_BlockRx(csd, 16)) {         /* Read partial block */
             for (n = 64 - 16; n; n--) MICROSD_XferSpi(0xff); /* Purge trailing data */
@@ -226,7 +228,7 @@ DRESULT disk_ioctl (
           }
         }
       } else {                      /* SDv1 or MMCv3 */
-        if ((MICROSD_SendCmd(CMD9, 0) == 0) && MICROSD_BlockRx(csd, 16)) {  /* Read CSD */
+        if ((MICROSD_SendCmd(drv, CMD9, 0) == 0) && MICROSD_BlockRx(csd, 16)) {  /* Read CSD */
           if (CardType & CT_SD1) {	/* SDv1 */
             *(DWORD*)buff = (((csd[10] & 63) << 1) + ((WORD)(csd[11] & 128) >> 7) + 1) << ((csd[13] >> 6) - 1);
           } else {                  /* MMCv3 */
@@ -243,19 +245,19 @@ DRESULT disk_ioctl (
       break;
 
     case MMC_GET_CSD :              /* Receive CSD as a data block (16 bytes) */
-      if ((MICROSD_SendCmd(CMD9, 0) == 0)       /* READ_CSD */
+      if ((MICROSD_SendCmd(drv, CMD9, 0) == 0)       /* READ_CSD */
         && MICROSD_BlockRx(buff, 16))
         res = RES_OK;
       break;
 
     case MMC_GET_CID :              /* Receive CID as a data block (16 bytes) */
-      if ((MICROSD_SendCmd(CMD10, 0) == 0)      /* READ_CID */
+      if ((MICROSD_SendCmd(drv, CMD10, 0) == 0)      /* READ_CID */
         && MICROSD_BlockRx(buff, 16))
         res = RES_OK;
       break;
 
     case MMC_GET_OCR :              /* Receive OCR as an R3 resp (4 bytes) */
-      if (MICROSD_SendCmd(CMD58, 0) == 0) {     /* READ_OCR */
+      if (MICROSD_SendCmd(drv, CMD58, 0) == 0) {     /* READ_OCR */
         for (n = 0; n < 4; n++)
           *((BYTE*)buff+n) = MICROSD_XferSpi(0xff);
         res = RES_OK;
@@ -263,7 +265,7 @@ DRESULT disk_ioctl (
       break;
 
     case MMC_GET_SDSTAT :           /* Receive SD statsu as a data block (64 bytes) */
-      if (MICROSD_SendCmd(ACMD13, 0) == 0) {    /* SD_STATUS */
+      if (MICROSD_SendCmd(drv, ACMD13, 0) == 0) {    /* SD_STATUS */
         MICROSD_XferSpi(0xff);
         if (MICROSD_BlockTx(buff, 64))
           res = RES_OK;
@@ -274,7 +276,7 @@ DRESULT disk_ioctl (
       res = RES_PARERR;
   }
 
-  MICROSD_Deselect();
+  MICROSD_Deselect(drv);
 
   return res;
 }

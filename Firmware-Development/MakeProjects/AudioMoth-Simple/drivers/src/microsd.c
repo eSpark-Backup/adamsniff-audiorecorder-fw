@@ -137,9 +137,17 @@ uint8_t MICROSD_XferSpi(uint8_t data)
 /**************************************************************************//**
  * @brief Deselect the micro SD card and release the SPI bus.
  *****************************************************************************/
-void MICROSD_Deselect(void)
+void MICROSD_Deselect(BYTE drv)
 {
-  GPIO->P[MICROSD_GPIOPORT].DOUTSET = 1 << MICROSD_CSPIN;   /* CS pin high. */
+  if(!drv)
+  {
+    GPIO->P[MICROSD_GPIOPORT].DOUTSET = 1 << MICROSD_CSPIN;   /* CS pin high. */
+  }
+  else
+  {
+    /* code */
+  }
+
   MICROSD_XferSpi(0xff);
 }
 
@@ -147,11 +155,19 @@ void MICROSD_Deselect(void)
  * @brief Select the micro SD card and wait for the card to become ready.
  * @return 1:Successful, 0:Timeout.
  *****************************************************************************/
-int MICROSD_Select(void)
+int MICROSD_Select(BYTE drv)
 {
-  GPIO->P[MICROSD_GPIOPORT].DOUTCLR = 1 << MICROSD_CSPIN;   /* CS pin low. */
+  if(!drv)
+  {
+    GPIO->P[MICROSD_GPIOPORT].DOUTCLR = 1 << MICROSD_CSPIN;   /* CS pin low. */
+  }
+  else
+  {
+    /* code */
+  }
+  
   if (WaitReady() != 0xFF) {
-    MICROSD_Deselect();
+    MICROSD_Deselect(drv);
     return 0;
   }
   return 1;
@@ -171,11 +187,11 @@ void MICROSD_PowerOn(void)
  * @brief Turn off micro SD card power.
  *        DK doesn't support socket power control, only disable the SPI clock.
  *****************************************************************************/
-void MICROSD_PowerOff(void)
+void MICROSD_PowerOff(BYTE drv)
 {
   /* Wait for micro SD card ready */
-  MICROSD_Select();
-  MICROSD_Deselect();
+  MICROSD_Select(drv);
+  MICROSD_Deselect(drv);
   /* Disable SPI clock */
   CMU_ClockEnable(MICROSD_CMUCLOCK, false);
 }
@@ -340,22 +356,22 @@ int MICROSD_BlockTx(const uint8_t *buff, uint8_t token)
  * @return
  *  Response value.
  *****************************************************************************/
-uint8_t MICROSD_SendCmd(uint8_t cmd, DWORD arg)
+uint8_t MICROSD_SendCmd(BYTE drv, uint8_t cmd, DWORD arg)
 {
   uint8_t  n, res;
   uint32_t retryCount;
 
   if (cmd & 0x80) { /* ACMD<n> is the command sequense of CMD55-CMD<n> */
     cmd &= 0x7F;
-    res  = MICROSD_SendCmd(CMD55, 0);
+    res  = MICROSD_SendCmd(drv, CMD55, 0);
     if (res > 1) {
       return res;
     }
   }
 
   /* Select the card and wait for ready */
-  MICROSD_Deselect();
-  if (!MICROSD_Select()) {
+  MICROSD_Deselect(drv);
+  if (!MICROSD_Select(drv)) {
     return 0xFF;
   }
 
