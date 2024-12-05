@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdarg.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,6 +44,8 @@
 
 SPI_HandleTypeDef hspi3;
 
+UART_HandleTypeDef huart3;
+
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -53,12 +55,81 @@ void SystemClock_Config(void);
 static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI3_Init(void);
+static void MX_USART3_UART_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void printf(const char *fmt, ...) {
+  static char buffer[256];
+  va_list args;
+  va_start(args, fmt);
+  vsnprintf(buffer, sizeof(buffer), fmt, args);
+  va_end(args);
+
+  int len = strlen(buffer);
+  HAL_UART_Transmit(&huart3, (uint8_t*)buffer, len, -1);
+
+}
+
+void writeFile(char* volume)
+{
+    // FatFs variables
+    FATFS FatFs;    // File system handle
+    FIL fil;        // File handle
+    FRESULT fres;   // Result after operations
+
+    // Mount the file system on the specified volume
+    fres = f_mount(&FatFs, volume, 1); // 1 = mount immediately
+    if (fres != FR_OK) {
+        // Handle mount error
+        printf("Failed to mount volume %s. Error: %d\r\n", volume, fres);
+        return;
+    }
+
+    // Get statistics from the SD card
+    DWORD free_clusters, free_sectors, total_sectors;
+    FATFS* getFreeFs;
+
+    fres = f_getfree(volume, &free_clusters, &getFreeFs); // Use volume-specific path
+    if (fres != FR_OK) {
+        // Handle error
+        printf("Failed to get free space for volume %s. Error: %d\r\n", volume, fres);
+        f_mount(NULL, volume, 0); // Unmount before returning
+        return;
+    }
+
+    // Calculate total and free sectors
+    total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
+    free_sectors = free_clusters * getFreeFs->csize;
+    printf("Volume %s - Total space: %lu KB, Free space: %lu KB\r\n",
+           volume, total_sectors / 2, free_sectors / 2);
+
+    // Write to a file
+    BYTE writeBuf[] = "A new file is made! Both Cards."; // Buffer to write
+    char filePath[64];
+    snprintf(filePath, sizeof(filePath), "%scards.txt", volume); // Specify volume in path
+
+    fres = f_open(&fil, filePath, FA_WRITE | FA_CREATE_ALWAYS); // Create or overwrite
+    if (fres != FR_OK) {
+        printf("Failed to open file on volume %s. Error: %d\r\n", volume, fres);
+        f_mount(NULL, volume, 0); // Unmount before returning
+        return;
+    }
+
+    UINT bytesWritten;
+    fres = f_write(&fil, writeBuf, sizeof(writeBuf) - 1, &bytesWritten); // Exclude null-terminator
+    if (fres == FR_OK) {
+        printf("Successfully wrote %u bytes to %s\r\n", bytesWritten, filePath);
+    } else {
+        printf("Failed to write to file. Error: %d\r\n", fres);
+    }
+
+    f_close(&fil); // Close the file
+//    f_mount(NULL, volume, 0); // Unmount the drive
+}
 
 /* USER CODE END 0 */
 
@@ -96,86 +167,22 @@ int main(void)
   MX_GPIO_Init();
   MX_FATFS_Init();
   MX_SPI3_Init();
+  MX_USART3_UART_Init();
   /* USER CODE BEGIN 2 */
-  //some variables for FatFs
-    FATFS FatFs; 	//Fatfs handle
-    FIL fil; 		//File handle
-    FRESULT fres; //Result after operations
 
-    //Open the file system
-    fres = f_mount(&FatFs, "", 1); //1=mount now
-    if (fres != FR_OK) {
-//  	myprintf("f_mount error (%i)\r\n", fres);
-  	while(1);
-    }
-
-    //Let's get some statistics from the SD card
-    DWORD free_clusters, free_sectors, total_sectors;
-
-    FATFS* getFreeFs;
-
-    fres = f_getfree("", &free_clusters, &getFreeFs);
-    if (fres != FR_OK) {
-//  	myprintf("f_getfree error (%i)\r\n", fres);
-  	while(1);
-    }
-
-    //Formula comes from ChaN's documentation
-    total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
-    free_sectors = free_clusters * getFreeFs->csize;
-
-//    myprintf("SD card stats:\r\n%10lu KiB total drive space.\r\n%10lu KiB available.\r\n", total_sectors / 2, free_sectors / 2);
-
-    //Now let's try to open file "test.txt"
-//    fres = f_open(&fil, "test.txt", FA_READ);
-//    if (fres != FR_OK) {
-//  	myprintf("f_open error (%i)\r\n");
-//  	while(1);
-//    }
-//    myprintf("I was able to open 'test.txt' for reading!\r\n");
-
-    //Read 30 bytes from "test.txt" on the SD card
-    BYTE readBuf[] = "a new file is made! ash";
-//
-//    //We can either use f_read OR f_gets to get data out of files
-//    //f_gets is a wrapper on f_read that does some string formatting for us
-//    TCHAR* rres = f_gets((TCHAR*)readBuf, 30, &fil);
-//    if(rres != 0) {
-////  	myprintf("Read string from 'test.txt' contents: %s\r\n", readBuf);
-//    } else {
-////  	myprintf("f_gets error (%i)\r\n", fres);
-//    }
-//
-//    //Be a tidy kiwi - don't forget to close your file!
-//    f_close(&fil);
-
-    //Now let's try and write a file "write.txt"
-    fres = f_open(&fil, "write.txt", FA_WRITE | FA_OPEN_ALWAYS | FA_CREATE_ALWAYS);
-    if(fres == FR_OK) {
-//  	myprintf("I was able to open 'write.txt' for writing\r\n");
-    } else {
-//  	myprintf("f_open error (%i)\r\n", fres);
-    }
-
-    UINT bytesWrote;
-    fres = f_write(&fil, readBuf, sizeof(readBuf), &bytesWrote);
-    if(fres == FR_OK) {
-//  	myprintf("Wrote %i bytes to 'write.txt'!\r\n", bytesWrote);
-    } else {
-//  	myprintf("f_write error (%i)\r\n");
-    }
-
-    //Be a tidy kiwi - don't forget to close your file!
-    f_close(&fil);
-
-    //We're done, so de-mount the drive
-    f_mount(NULL, "", 0);
+  writeFile("0:");
+  extern BYTE g_drv;
+  g_drv = 1;
+  writeFile("1:");
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  const uint8_t str[] = "test print\r\n";
+	  HAL_UART_Transmit(&huart3, str, sizeof(str), 1000);
+	  HAL_Delay(1000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -232,7 +239,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.SYSCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB3CLKDivider = RCC_APB3_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_APB1_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_APB2_DIV1;
   RCC_ClkInitStruct.APB4CLKDivider = RCC_APB4_DIV1;
 
@@ -265,7 +272,7 @@ static void MX_SPI3_Init(void)
   hspi3.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi3.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi3.Init.NSS = SPI_NSS_SOFT;
-  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
+  hspi3.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_64;
   hspi3.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi3.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi3.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -291,6 +298,54 @@ static void MX_SPI3_Init(void)
 }
 
 /**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART3_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
+  huart3.Instance = USART3;
+  huart3.Init.BaudRate = 115200;
+  huart3.Init.WordLength = UART_WORDLENGTH_8B;
+  huart3.Init.StopBits = UART_STOPBITS_1;
+  huart3.Init.Parity = UART_PARITY_NONE;
+  huart3.Init.Mode = UART_MODE_TX_RX;
+  huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart3.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart3.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart3.Init.ClockPrescaler = UART_PRESCALER_DIV1;
+  huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetTxFifoThreshold(&huart3, UART_TXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_SetRxFifoThreshold(&huart3, UART_RXFIFO_THRESHOLD_1_8) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_UARTEx_DisableFifoMode(&huart3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -304,10 +359,14 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
   __HAL_RCC_GPIOC_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(SD_CS_EX_GPIO_Port, SD_CS_EX_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : SD_CS_Pin */
   GPIO_InitStruct.Pin = SD_CS_Pin;
@@ -315,6 +374,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(SD_CS_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : SD_CS_EX_Pin */
+  GPIO_InitStruct.Pin = SD_CS_EX_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(SD_CS_EX_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

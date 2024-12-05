@@ -64,8 +64,8 @@ all: main-build
 main-build: SDCard.elf secondary-outputs
 
 # Tool invocations
-SDCard.elf SDCard.map: $(OBJS) $(USER_OBJS) C:\Users\Ash\STM32CubeIDE\workspace_1.16.1\SDCard\STM32H723ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "SDCard.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"C:\Users\Ash\STM32CubeIDE\workspace_1.16.1\SDCard\STM32H723ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SDCard.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+SDCard.elf SDCard.map: $(OBJS) $(USER_OBJS) D:\GitHub\adamsniff-audiorecorder-fw\Firmware-Development\STM32CubeIDE\SDCard\STM32H723ZGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "SDCard.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m7 -T"D:\GitHub\adamsniff-audiorecorder-fw\Firmware-Development\STM32CubeIDE\SDCard\STM32H723ZGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SDCard.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv5-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 

@@ -31,7 +31,7 @@
 //Make sure you set #define SD_CS_GPIO_Port as some GPIO port in main.h
 //Make sure you set #define SD_CS_Pin as some GPIO pin in main.h
 extern SPI_HandleTypeDef SD_SPI_HANDLE;
-
+BYTE g_drv = 0;
 /* Function prototypes */
 
 //(Note that the _256 is used as a mask to clear the prescalar bits as it provides binary 111 in the correct position)
@@ -40,6 +40,9 @@ extern SPI_HandleTypeDef SD_SPI_HANDLE;
 
 #define CS_HIGH()	{HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_SET);}
 #define CS_LOW()	{HAL_GPIO_WritePin(SD_CS_GPIO_Port, SD_CS_Pin, GPIO_PIN_RESET);}
+
+#define CS_HIGH_EX()	{HAL_GPIO_WritePin(SD_CS_EX_GPIO_Port, SD_CS_EX_Pin, GPIO_PIN_SET);}
+#define CS_LOW_EX()	{HAL_GPIO_WritePin(SD_CS_EX_GPIO_Port, SD_CS_EX_Pin, GPIO_PIN_RESET);}
 
 /*--------------------------------------------------------------------------
 
@@ -171,7 +174,15 @@ int wait_ready (	/* 1:Ready, 0:Timeout */
 static
 void despiselect (void)
 {
-	CS_HIGH();		/* Set CS# high */
+	// printf("g_drv %d\r\n", g_drv);
+	if(!g_drv)
+	{
+		CS_HIGH();		/* Set CS# high */
+	}
+	else
+	{
+		CS_HIGH_EX();
+	}
 	xchg_spi(0xFF);	/* Dummy clock (force DO hi-z for multiple slave SPI) */
 
 }
@@ -185,7 +196,15 @@ void despiselect (void)
 static
 int spiselect (void)	/* 1:OK, 0:Timeout */
 {
-	CS_LOW();		/* Set CS# low */
+	// printf("g_drv %d\r\n", g_drv);
+	if(!g_drv)
+	{
+		CS_LOW();		/* Set CS# low */
+	}
+	else
+	{
+		CS_LOW_EX();
+	}
 	xchg_spi(0xFF);	/* Dummy clock (force DO enabled) */
 	if (wait_ready(500)) return 1;	/* Wait for card ready */
 
@@ -322,7 +341,8 @@ inline DSTATUS USER_SPI_initialize (
 {
 	BYTE n, cmd, ty, ocr[4];
 
-	if (drv != 0) return STA_NOINIT;		/* Supports only drive 0 */
+//	if (drv != 0) return STA_NOINIT;		/* Supports only drive 0 */
+	// g_drv = drv;
 	//assume SPI already init init_spi();	/* Initialize SPI */
 
 	if (Stat & STA_NODISK) return Stat;	/* Is card existing in the soket? */
@@ -376,7 +396,8 @@ inline DSTATUS USER_SPI_status (
 	BYTE drv		/* Physical drive number (0) */
 )
 {
-	if (drv) return STA_NOINIT;		/* Supports only drive 0 */
+//	if (drv) return STA_NOINIT;		/* Supports only drive 0 */
+	// g_drv = drv;
 
 	return Stat;	/* Return disk status */
 }
@@ -394,7 +415,9 @@ inline DRESULT USER_SPI_read (
 	UINT count		/* Number of sectors to read (1..128) */
 )
 {
-	if (drv || !count) return RES_PARERR;		/* Check parameter */
+//	if (drv || !count) return RES_PARERR;		/* Check parameter */
+	if (!count) return RES_PARERR;		/* Check parameter */
+	// g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
 	if (!(CardType & CT_BLOCK)) sector *= 512;	/* LBA ot BA conversion (byte addressing cards) */
@@ -433,7 +456,9 @@ inline DRESULT USER_SPI_write (
 	UINT count			/* Number of sectors to write (1..128) */
 )
 {
-	if (drv || !count) return RES_PARERR;		/* Check parameter */
+//	if (drv || !count) return RES_PARERR;		/* Check parameter */
+	if (!count) return RES_PARERR;		/* Check parameter */
+	// g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check drive status */
 	if (Stat & STA_PROTECT) return RES_WRPRT;	/* Check write protect */
 
@@ -478,7 +503,8 @@ inline DRESULT USER_SPI_ioctl (
 	DWORD *dp, st, ed, csize;
 
 
-	if (drv) return RES_PARERR;					/* Check parameter */
+//	if (drv) return RES_PARERR;					/* Check parameter */
+	// g_drv = drv;
 	if (Stat & STA_NOINIT) return RES_NOTRDY;	/* Check if drive is ready */
 
 	res = RES_ERROR;

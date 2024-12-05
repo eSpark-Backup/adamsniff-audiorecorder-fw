@@ -59,6 +59,8 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define SD_CS_Pin GPIO_PIN_4
 #define SD_CS_GPIO_Port GPIOA
+#define SD_CS_EX_Pin GPIO_PIN_4
+#define SD_CS_EX_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 
