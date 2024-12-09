@@ -2640,20 +2640,20 @@ DWORD get_fattime(void) {
 
 void AudioMoth_setRedLED(bool state) {
 
-    GPIO_PinModeSet(LED_GPIOPORT, RED_LED, gpioModePushPull, state);
+    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
 
 }
 
 void AudioMoth_setBothLED(bool state) {
 
-    GPIO_PinModeSet(LED_GPIOPORT, RED_LED, gpioModePushPull, state);
-    GPIO_PinModeSet(LED_GPIOPORT, GREEN_LED, gpioModePushPull, state);
+    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
+    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
 
 }
 
 void AudioMoth_setGreenLED(bool state) {
 
-    GPIO_PinModeSet(LED_GPIOPORT, GREEN_LED, gpioModePushPull, state);
+    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
 
 }
 
@@ -2889,7 +2889,7 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_E, EBI_AD06, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_E, EBI_AD07, gpioModePushPull, 0);
 
-    /* Enable EBI AD08..15 address pins*/
+    /* Enable EBI AD08..15 data pins*/
 
     GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD08, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD09, gpioModePushPull, 0);
@@ -2901,7 +2901,14 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD15, gpioModePushPull, 0);
 
     /* Enable EBI A16..24 extension address pins*/
-
+    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_A00, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_A01, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_A02, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A03, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A04, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A05, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A06, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_E, EBI_A07, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_E, EBI_A08, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A09, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A10, gpioModePushPull, 0);
@@ -2912,6 +2919,9 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A15, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A16, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A17, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A18, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A19, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A20, gpioModePushPull, 0);
 
     /* Enable EBI CS0-CS1 */
 
@@ -2923,16 +2933,20 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_OE, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_WE, gpioModePushPull, 0);
 
+    /* Enable EBI LB/UB */
+    GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_LB, gpioModePushPull, 0);
+	GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_UB, gpioModePushPull, 0);
+
     /* Configure EBI controller, changing default values */
 
     EBI_Init_TypeDef ebiInit = EBI_INIT_DEFAULT;
 
-    ebiInit.mode = ebiModeD8A8;
+    ebiInit.mode = ebiModeD16;
     ebiInit.banks = EBI_BANK0;
     ebiInit.csLines = EBI_CS0 | EBI_CS1;
     ebiInit.readHalfRE = true;
 
-    ebiInit.aLow = ebiALowA8;
+    ebiInit.aLow = ebiALowA0;
     ebiInit.aHigh = ebiAHighA18;
 
     /* Address Setup and hold time */

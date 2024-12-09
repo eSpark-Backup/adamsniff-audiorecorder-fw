@@ -36,6 +36,10 @@ THE SOFTWARE.
 #include <stdbool.h>
 #include <stdint.h>
 
+#define IO_EXP_EN_PIN 5
+#define IO_EXP_EN_PORT gpioPortF
+
+
 #define TCA6424A_ADDRESS_ADDR_LOW 0x22  // address pin low (GND)
 #define TCA6424A_ADDRESS_ADDR_HIGH 0x23 // address pin high (VCC)
 #define TCA6424A_DEFAULT_ADDRESS TCA6424A_ADDRESS_ADDR_LOW

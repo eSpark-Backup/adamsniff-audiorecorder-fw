@@ -17,8 +17,8 @@
 
 /* Hardware constants */
 
-#define UART_RX_GPIOPORT                        gpioPortB
-#define UART_RX_PIN                             10
+#define UART_RX_GPIOPORT                        gpioPortE
+#define UART_RX_PIN                             3
 
 #define PPS_GPIOPORT                            gpioPortA
 #define PPS_PIN                                 8
@@ -169,7 +169,7 @@ void GPSInterface_enable(uint32_t ticksPerSecond) {
 
     /* Enable route */
 
-    UART1->ROUTE = UART_ROUTE_RXPEN | UART_ROUTE_LOCATION_LOC2;
+    UART1->ROUTE = UART_ROUTE_RXPEN | UART_ROUTE_LOCATION_LOC3;
 
     /* Enable UART */
 

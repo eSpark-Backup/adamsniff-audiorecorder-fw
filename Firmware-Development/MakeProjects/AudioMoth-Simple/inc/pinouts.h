@@ -19,14 +19,15 @@
 
 /* Red and green LED */
 
-#define LED_GPIOPORT                            gpioPortC
+#define LED_GREEN_GPIOPORT                      gpioPortC
+#define LED_RED_GPIOPORT                      gpioPortB
 #define GREEN_LED                               5
-#define RED_LED                                 4
+#define RED_LED                                 11
 
 /* Switch 1 sense */
 
-#define SWITCH_1_GPIOPORT                       gpioPortC
-#define SWITCH_1_SENSE                          6
+#define SWITCH_1_GPIOPORT                       gpioPortD
+#define SWITCH_1_SENSE                          0
 
 /* Switch 2 position */
 
@@ -82,6 +83,7 @@
 /* EBI */
 
 #define EBI_GPIOPORT_A                          gpioPortA
+
 #define EBI_AD08                                15
 #define EBI_AD09                                0
 #define EBI_AD10                                1
@@ -90,6 +92,9 @@
 #define EBI_AD13                                4
 #define EBI_AD14                                5
 #define EBI_AD15                                6
+#define EBI_A00                                 13
+#define EBI_A01                                 14
+#define EBI_A02                                 15
 
 #define EBI_GPIOPORT_E                          gpioPortE
 #define EBI_AD00                                8
@@ -105,6 +110,7 @@
 #define EBI_A12                                 5
 #define EBI_A13                                 6
 #define EBI_A14                                 7
+#define EBI_A07                                 0
 
 #define EBI_GPIOPORT_B                          gpioPortB
 #define EBI_A16                                 0
@@ -114,8 +120,12 @@
 #define EBI_A20                                 4
 #define EBI_A21                                 5
 #define EBI_A22                                 6
+#define EBI_A03                                 8
+#define EBI_A04                                 9
 
 #define EBI_GPIOPORT_C                          gpioPortC
+#define EBI_A05                                 6
+#define EBI_A06                                 7
 #define EBI_A15                                 8
 #define EBI_A09                                 9
 #define EBI_A10                                 10
@@ -129,5 +139,7 @@
 #define EBI_GPIOPORT_F                          gpioPortF
 #define EBI_OE                                  9
 #define EBI_WE                                  8
+#define EBI_LB                                  6
+#define EBI_UB                                  7
 
 #endif /* __PINOUTS_H */

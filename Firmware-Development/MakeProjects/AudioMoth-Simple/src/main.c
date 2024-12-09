@@ -7,6 +7,7 @@
 #include <stdbool.h>
 
 #include "audiomoth.h"
+#include "tca6424a.h"
 
 /* Firmware version and description */
 
