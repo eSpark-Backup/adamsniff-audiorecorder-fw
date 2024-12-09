@@ -1,6 +1,10 @@
 {
     "files.associations": {
         "tca6424a.h": "c",
-        "em_i2c.h": "c"
+        "em_i2c.h": "c",
+        "em_device.h": "c",
+        "efm32wg880f256.h": "c",
+        "efm32wg380f256.h": "c",
+        "efm32wg_i2c.h": "c"
     }
 }

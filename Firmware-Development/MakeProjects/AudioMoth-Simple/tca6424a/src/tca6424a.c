@@ -34,6 +34,7 @@ THE SOFTWARE.
 #include <stdint.h>
 #include "tca6424a.h"
 #include "em_i2c.h"
+#include "tca6424a_i2c.h"
 
 uint8_t devAddr;
 uint8_t buffer[3];
@@ -63,6 +64,7 @@ void TCA6424A_Construct(uint8_t address)
  */
 void TCA6424A_initialize(void)
 {
+    TCA6424A_Construct_Default();
 }
 
 /** Verify the I2C connection.
