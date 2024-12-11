@@ -46,8 +46,8 @@
 
 /* Internal microphone power */
 
-#define VMIC_GPIOPORT                           gpioPortE
-#define VMIC_ENABLE_N                           0
+#define VMIC_GPIOPORT                           gpioPortA
+#define VMIC_ENABLE_N                           9
 
 /* External microphone power */
 
