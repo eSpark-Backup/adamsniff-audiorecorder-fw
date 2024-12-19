@@ -16,6 +16,8 @@
 #include "audiomoth.h"
 #include "audioconfig.h"
 #include "digitalfilter.h"
+#include "pinouts.h"
+#include "em_gpio.h"
 
 /* Useful time constants */
 
@@ -1434,6 +1436,7 @@ int main(void) {
     AudioMoth_initialise();
 
     AM_switchPosition_t switchPosition = AudioMoth_getSwitchPosition();
+    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeDisabled, 0);
 
     if (AudioMoth_isInitialPowerUp()) {
         
@@ -2105,9 +2108,9 @@ int main(void) {
 
         /* Handle switch position change */
 
-        bool switchEvent = switchPositionChanged || AudioMoth_getSwitchPosition() != *previousSwitchPosition;
+        // bool switchEvent = switchPositionChanged || AudioMoth_getSwitchPosition() != *previousSwitchPosition;
        
-        if (switchEvent) SAVE_SWITCH_POSITION_AND_POWER_DOWN(DEFAULT_WAIT_INTERVAL);
+        // if (switchEvent) SAVE_SWITCH_POSITION_AND_POWER_DOWN(DEFAULT_WAIT_INTERVAL);
         
         /* Calculate the time to the next event */
         

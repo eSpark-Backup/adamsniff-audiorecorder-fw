@@ -1778,6 +1778,7 @@ void AudioMoth_blinkDuringUSB(uint32_t milliseconds) {
 
 void AudioMoth_handleUSB(void) {
 
+    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
     /* Configure data input pin */
 
     GPIO_PinModeSet(USB_DATA_GPIOPORT, USB_P, gpioModeInputPull, 0);
