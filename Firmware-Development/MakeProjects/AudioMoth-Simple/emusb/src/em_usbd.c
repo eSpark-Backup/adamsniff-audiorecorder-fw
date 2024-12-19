@@ -430,11 +430,11 @@ int USBD_Init(const USBD_Init_TypeDef *p)
     return USB_STATUS_ILLEGAL;
   }
 
-  if ( numEps != NUM_EP_USED ) {
-    DEBUG_USB_API_PUTS("\nUSBD_Init(), Illegal EP count");
-    EFM_ASSERT(false);
-    return USB_STATUS_ILLEGAL;
-  }
+//   if ( numEps != NUM_EP_USED ) {
+//     DEBUG_USB_API_PUTS("\nUSBD_Init(), Illegal EP count");
+//     EFM_ASSERT(false);
+//     return USB_STATUS_ILLEGAL;
+//   }
 
   if ( numInEps > MAX_NUM_IN_EPS ) {
     DEBUG_USB_API_PUTS("\nUSBD_Init(), Illegal IN EP count");

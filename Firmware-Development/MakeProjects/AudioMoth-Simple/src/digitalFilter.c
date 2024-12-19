@@ -1,39 +1,32 @@
 /****************************************************************************
  * digitalfilter.c
  * openacousticdevices.info
- * April 2020
+ * August 2021
  *****************************************************************************/
 
 #include <math.h>
-#include <float.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <complex.h>
 
-#include "digitalFilter.h"
+#include "digitalfilter.h"
 
-/* Filter design constants */
+/*  Useful macros */
 
 #ifndef M_PI
-#define M_PI                                    3.14159265358979323846f
+#define M_PI            3.14159265358979323846f
 #endif
 
 #ifndef M_TWOPI
-#define M_TWOPI                                 (2.0f * M_PI)
+#define M_TWOPI         (2.0f * M_PI)
 #endif
 
-#define MAX_POLES                               2
+#define MIN(a, b)       ((a) < (b) ? (a) : (b))
+#define MAX(a, b)       ((a) > (b) ? (a) : (b))
 
-/* Goertzel filter constants */
+/* Filter design constants */
 
-#define MAXIMUM_HAMMING_WINDOW_LENGTH           1024
-
-#define MINIMUM_NUMBER_OF_ITERATIONS            16
-
-/* Useful macros */
-
-#define MIN(a, b)                               ((a) < (b) ? (a) : (b))
-#define MAX(a, b)                               ((a) > (b) ? (a) : (b))
+#define MAX_POLES       2
 
 /* Filter global variables */
 
@@ -56,20 +49,6 @@ static complex float zzeros[MAX_POLES];
 
 static complex float topcoeffs[MAX_POLES + 1];
 static complex float botcoeffs[MAX_POLES + 1];
-
-/* Amplitude threshold variable */
-
-static uint16_t amplitudeThreshold;
-
-/* Goertzel filter variables */
-
-static float hammingWindow[MAXIMUM_HAMMING_WINDOW_LENGTH];
-
-static uint32_t goertzelFilterWindowLength;
-
-static float goertzelFilterThreshold;
-
-static float goertzelFilterConstant;
 
 /* Static filter design functions */
 
@@ -153,13 +132,31 @@ static inline float applyBandPassFilter(float sample) {
 
 }
 
+static inline void writeFilteredOutput(int16_t *dest, uint32_t index, float filterOutput) {
+
+    /* Apply output range limits */
+
+    if (filterOutput > INT16_MAX) {
+
+        filterOutput = INT16_MAX;
+
+    } else if (filterOutput < -INT16_MAX) {
+
+        filterOutput = -INT16_MAX;
+
+    }
+
+    /* Write the output value */
+
+    dest[index]  = (int16_t)filterOutput;
+
+}
+
 /* General filter routine */
 
-static bool filter(int16_t *source, int16_t *dest, uint32_t sampleRateDivider, uint32_t size) {
+static void filter(int16_t *source, int16_t *dest, uint32_t sampleRateDivider, uint32_t size) {
 
     uint32_t index = 0;
-
-    bool exceededThreshold = false;
 
     for (uint32_t i = 0; i < size; i += sampleRateDivider) {
 
@@ -183,239 +180,43 @@ static bool filter(int16_t *source, int16_t *dest, uint32_t sampleRateDivider, u
 
         }
 
-        /* Apply output range limits */
+        writeFilteredOutput(dest, index, filterOutput);
 
-        if (filterOutput > INT16_MAX) {
-
-            filterOutput = INT16_MAX;
-
-        } else if (filterOutput < -INT16_MAX) {
-
-            filterOutput = -INT16_MAX;
-
-        }
-
-        /* Check if amplitude threshold is exceeded */
-
-        if (fabsf(filterOutput) >= amplitudeThreshold) {
-
-            exceededThreshold = true;
-
-        }
-
-        /* Write the output value */
-
-        dest[index++] = (int16_t)filterOutput;
+        index += 1;
 
     }
-
-    return exceededThreshold;
 
 }
 
 /* Fast filter routine for when 250kHz and 384kHz and sampleRateDivider is not needed */
 
-static bool fastFilterWithGoertzelFilterThreshold(int16_t *source, int16_t *dest, uint32_t size) {
-
-    uint32_t index = 0;
-
-    bool exceededThreshold = false;
+static void fastFilter(int16_t *source, int16_t *dest, uint32_t size) {
 
     if (filterType == DF_HIGH_PASS_FILTER) {
 
-        for (uint32_t i = 0; i < size / goertzelFilterWindowLength; i += 1) {
+        for (uint32_t index = 0; index < size; index += 1) {
 
-            float d1 = 0.0f;
+            float sample = source[index];
 
-            float d2 = 0.0f;
+            float filterOutput = applyHighPassFilter(sample);
 
-            uint32_t hammingIndex = 0;
-
-            for (uint32_t j = 0; j < goertzelFilterWindowLength / MINIMUM_NUMBER_OF_ITERATIONS; j += 1) {
-
-                for (uint32_t k = 0; k < MINIMUM_NUMBER_OF_ITERATIONS; k += 1) {
-
-                    float sample = source[index];
-
-                    float filterOutput = applyHighPassFilter(sample);
-
-                    /* Apply output range limits */
-
-                    if (filterOutput > INT16_MAX) {
-
-                        filterOutput = INT16_MAX;
-
-                    } else if (filterOutput < -INT16_MAX) {
-
-                        filterOutput = -INT16_MAX;
-
-                    }
-
-                    /* Update Goertzel filter */
-
-                    float y = hammingWindow[hammingIndex++] * filterOutput + goertzelFilterConstant * d1 - d2;
-
-                    d2 = d1;
-
-                    d1 = y;
-
-                    /* Write the output value */
-
-                    dest[index++] = (int16_t)filterOutput;
-                    
-                }
-
-            }
-
-            float squaredMagnitude = d1 * d1 + d2 * d2 - goertzelFilterConstant * d1 * d2;
-
-            if (squaredMagnitude > goertzelFilterThreshold) exceededThreshold = true;
+            writeFilteredOutput(dest, index, filterOutput);
 
         }
 
     } else {
 
-        for (uint32_t i = 0; i < size / goertzelFilterWindowLength; i += 1) {
+        for (uint32_t index = 0; index < size; index += 1) {
 
-            float d1 = 0.0f;
+            float sample = source[index];
 
-            float d2 = 0.0f;
+            float filterOutput = applyBandPassFilter(sample);
 
-            uint32_t hammingIndex = 0;
-
-            for (uint32_t j = 0; j < goertzelFilterWindowLength / MINIMUM_NUMBER_OF_ITERATIONS; j += 1) {
-
-                for (uint32_t k = 0; k < MINIMUM_NUMBER_OF_ITERATIONS; k += 1) {
-
-                    float sample = source[index];
-
-                    float filterOutput = applyBandPassFilter(sample);
-
-                    /* Apply output range limits */
-
-                    if (filterOutput > INT16_MAX) {
-
-                        filterOutput = INT16_MAX;
-
-                    } else if (filterOutput < -INT16_MAX) {
-
-                        filterOutput = -INT16_MAX;
-
-                    }
-                
-                    /* Update Goertzel filter */
-
-                    float y = hammingWindow[hammingIndex++] * filterOutput + goertzelFilterConstant * d1 - d2;
-
-                    d2 = d1;
-
-                    d1 = y;
-
-                    /* Write the output value */
-
-                    dest[index++] = (int16_t)filterOutput;
-
-                }
-
-            }
-
-            float squaredMagnitude = d1 * d1 + d2 * d2 - goertzelFilterConstant * d1 * d2;
-
-            if (squaredMagnitude > goertzelFilterThreshold) exceededThreshold = true;
-
-        }
-    
-    }
-
-    return exceededThreshold;
-
-}
-
-static bool fastFilterWithAmplitudeThreshold(int16_t *source, int16_t *dest, uint32_t size) {
-
-    uint32_t index = 0;
-
-    bool exceededThreshold = false;
-
-    if (filterType == DF_HIGH_PASS_FILTER) {
-
-        for (uint32_t i = 0; i < size / MINIMUM_NUMBER_OF_ITERATIONS; i += 1) {
-
-            for (uint32_t j = 0; j < MINIMUM_NUMBER_OF_ITERATIONS; j += 1) {
-
-                float sample = source[index];
-
-                float filterOutput = applyHighPassFilter(sample);
-
-                /* Apply output range limits */
-
-                if (filterOutput > INT16_MAX) {
-
-                    filterOutput = INT16_MAX;
-
-                } else if (filterOutput < -INT16_MAX) {
-
-                    filterOutput = -INT16_MAX;
-
-                }
-
-                /* Check if amplitude threshold is exceeded */
-
-                if (fabsf(filterOutput) >= amplitudeThreshold) {
-
-                    exceededThreshold = true;
-
-                }
-
-                /* Write the output value */
-
-                dest[index++] = (int16_t)filterOutput;
-
-            }
-
-        }
-
-    } else {
-
-        for (uint32_t i = 0; i < size / MINIMUM_NUMBER_OF_ITERATIONS; i += 1) {
-
-            for (uint32_t j = 0; j < MINIMUM_NUMBER_OF_ITERATIONS; j += 1) {
-
-                float sample = source[index];
-
-                float filterOutput = applyBandPassFilter(sample);
-
-                /* Apply output range limits */
-
-                if (filterOutput > INT16_MAX) {
-
-                    filterOutput = INT16_MAX;
-
-                } else if (filterOutput < -INT16_MAX) {
-
-                    filterOutput = -INT16_MAX;
-
-                }
-
-                /* Check if amplitude threshold is exceeded */
-
-                if (fabsf(filterOutput) >= amplitudeThreshold) {
-
-                    exceededThreshold = true;
-
-                }
-
-                /* Write the output value */
-
-                dest[index++] = (int16_t)filterOutput;
-
-            }
+            writeFilteredOutput(dest, index, filterOutput);
 
         }
 
     }
-
-    return exceededThreshold;
 
 }
 
@@ -431,15 +232,11 @@ void DigitalFilter_reset() {
     yv1 = 0.0f;
     yv2 = 0.0f;
 
-    amplitudeThreshold = 0;
-
-    goertzelFilterThreshold = 0.0f;
-
 }
 
 /* Update filter gain */
 
-void DigitalFilter_setAdditionalGain(float g) {
+void DigitalFilter_applyAdditionalGain(float g) {
 
     gain *= g;
 
@@ -447,61 +244,17 @@ void DigitalFilter_setAdditionalGain(float g) {
 
 /* Apply digital filter */
 
-bool DigitalFilter_applyFilter(int16_t *source, int16_t *dest, uint32_t sampleRateDivider, uint32_t size) {
+void DigitalFilter_filter(int16_t *source, int16_t *dest, uint32_t sampleRateDivider, uint32_t size) {
 
     if (sampleRateDivider == 1) {
 
-        if (goertzelFilterThreshold > 0.0f) {
-
-            return fastFilterWithGoertzelFilterThreshold(source, dest, size);
-
-        } else {
-
-            return fastFilterWithAmplitudeThreshold(source, dest, size);
-
-        }
+        fastFilter(source, dest, size);
 
     } else {
 
-        return filter(source, dest, sampleRateDivider, size);
+        filter(source, dest, sampleRateDivider, size);
 
     }
-
-}
-
-bool DigitalFilter_applyFrequencyTrigger(int16_t *source, uint32_t size) {
-
-    uint32_t index = 0;
-
-    for (uint32_t i = 0; i < size / goertzelFilterWindowLength; i += 1) {
-
-        float d1 = 0.0f;
-
-        float d2 = 0.0f;
-
-        uint32_t hammingIndex = 0;
-
-        for (uint32_t j = 0; j < goertzelFilterWindowLength / MINIMUM_NUMBER_OF_ITERATIONS; j += 1) {
-
-            for (uint32_t k = 0; k < MINIMUM_NUMBER_OF_ITERATIONS; k += 1) {
-
-                float y = hammingWindow[hammingIndex++] * (float)source[index++] + goertzelFilterConstant * d1 - d2;
-    
-                d2 = d1;
-    
-                d1 = y;
-
-            }
-
-        }
-
-        float squaredMagnitude = d1 * d1 + d2 * d2 - goertzelFilterConstant * d1 * d2;
-
-        if (squaredMagnitude > goertzelFilterThreshold) return true;
-
-    }
-
-    return false;
 
 }
 
@@ -643,36 +396,6 @@ void DigitalFilter_designBandPassFilter(uint32_t sampleRate, uint32_t freq1, uin
 
 }
 
-/* Set threshold options */
-
-void DigitalFilter_setAmplitudeThreshold(uint16_t threshold) {
-
-    amplitudeThreshold = threshold;
-
-}
-
-void DigitalFilter_setFrequencyTrigger(uint32_t windowLength, uint32_t sampleRate, uint32_t frequency, float percentageThreshold) {
-
-    goertzelFilterThreshold = 0.0f;
-
-    goertzelFilterWindowLength = windowLength;
-
-    for (uint32_t i = 0; i < goertzelFilterWindowLength; i += 1) {
-
-        hammingWindow[i] = 0.54f - 0.46f * cosf(M_TWOPI * (float)i / (float)(goertzelFilterWindowLength - 1));
-
-        goertzelFilterThreshold += hammingWindow[i];
-
-    }
-
-    goertzelFilterThreshold *= (float)INT16_MAX / 2.0f;
-
-    goertzelFilterThreshold = percentageThreshold >= 100.0f ? FLT_MAX : goertzelFilterThreshold * goertzelFilterThreshold * percentageThreshold / 100.0f * percentageThreshold / 100.0f;
-
-    goertzelFilterConstant = 2.0f * cosf(M_TWOPI * (float)frequency / (float)sampleRate);
-
-}
-
 /* Read back filter setting */
 
 void DigitalFilter_readSettings(float *gainPtr, float *yc0Ptr, float *yc1Ptr, DF_filterType_t *filterTypePtr) {
@@ -686,3 +409,6 @@ void DigitalFilter_readSettings(float *gainPtr, float *yc0Ptr, float *yc1Ptr, DF
     *filterTypePtr = filterType;
 
 }
+
+
+
