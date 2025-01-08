@@ -771,7 +771,7 @@ bool AudioMoth_enableMicrophone(AM_gainRange_t gainRain, AM_gainSetting_t gain, 
 
     /* Set up amplifier stage and the ADC */
 
-    setupOpAmp(gainRain, gain);
+    // setupOpAmp(gainRain, gain);
 
     setupADC(clockDivider, acquisitionCycles, oversampleRate);
 
@@ -1016,14 +1016,14 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     /* SCAN mode voltage reference must match the reference selected for SINGLE mode conversions */
 
-    ADC0->SCANCTRL = ADC_SCANCTRL_REF_2V5;
+    ADC0->SCANCTRL = ADC_SCANCTRL_REF_1V25;
 
     /* Configure ADC single conversion structure */
 
     ADC_InitSingle_TypeDef adcSingleInit = ADC_INITSINGLE_DEFAULT;
 
     adcSingleInit.prsSel = adcPRSSELCh0;
-    adcSingleInit.reference = adcRef2V5;
+    adcSingleInit.reference = adcRef1V25;
 
     if (oversampleRate == 1) {
 
@@ -1037,16 +1037,18 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     if (hardwareVersion < AM_VERSION_4) {
 
-        adcSingleInit.input = adcSingleInpCh0Ch1;
+        // adcSingleInit.input = adcSingleInpCh0Ch1;
+        adcSingleInit.input = adcSingleInpCh7;
 
     } else {
 
-        adcSingleInit.input = adcSingleInpCh4Ch5;
+        // adcSingleInit.input = adcSingleInpCh4Ch5;
+        adcSingleInit.input = adcSingleInpCh7;
 
     }
 
     adcSingleInit.prsEnable = true;
-    adcSingleInit.diff = true;
+    adcSingleInit.diff = false;
     adcSingleInit.rep = false;
 
     if (acquisitionCycles == 16) {
