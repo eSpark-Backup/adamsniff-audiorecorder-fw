@@ -1016,14 +1016,14 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     /* SCAN mode voltage reference must match the reference selected for SINGLE mode conversions */
 
-    ADC0->SCANCTRL = ADC_SCANCTRL_REF_1V25;
+    ADC0->SCANCTRL = ADC_SCANCTRL_REF_VDD;
 
     /* Configure ADC single conversion structure */
 
     ADC_InitSingle_TypeDef adcSingleInit = ADC_INITSINGLE_DEFAULT;
 
     adcSingleInit.prsSel = adcPRSSELCh0;
-    adcSingleInit.reference = adcRef1V25;
+    adcSingleInit.reference = adcRefVDD;
 
     if (oversampleRate == 1) {
 
