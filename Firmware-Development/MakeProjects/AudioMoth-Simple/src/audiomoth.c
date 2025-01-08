@@ -962,7 +962,7 @@ static void setupOpAmp(AM_gainRange_t gainRange, AM_gainSetting_t gainSetting) {
 
     OPAMP_Enable(DAC0, OPA1, &opa1Init);
 
-    OPAMP_Enable(DAC0, OPA2, &opa2Init);
+    // OPAMP_Enable(DAC0, OPA2, &opa2Init);
 
     /* Disable the clock */
 
@@ -1037,16 +1037,18 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     if (hardwareVersion < AM_VERSION_4) {
 
-        adcSingleInit.input = adcSingleInpCh0Ch1;
+        // adcSingleInit.input = adcSingleInpCh0Ch1;
+        adcSingleInit.input = adcSingleInpCh3;
 
     } else {
 
-        adcSingleInit.input = adcSingleInpCh4Ch5;
+        // adcSingleInit.input = adcSingleInpCh4Ch5;
+        adcSingleInit.input = adcSingleInpCh3;
 
     }
 
     adcSingleInit.prsEnable = true;
-    adcSingleInit.diff = true;
+    adcSingleInit.diff = false;
     adcSingleInit.rep = false;
 
     if (acquisitionCycles == 16) {
