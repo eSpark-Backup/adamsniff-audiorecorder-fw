@@ -1117,6 +1117,7 @@ static bool writeConfigurationToFile(configSettings_t *configSettings, uint32_t 
 
 }
 
+
 /* Backup domain variables */
 
 static uint32_t *previousSwitchPosition = (uint32_t*)AM_BACKUP_DOMAIN_START_ADDRESS;
@@ -1266,6 +1267,57 @@ static void determineSunriseAndSunsetTimesAndScheduleRecording(uint32_t currentT
 static void determineSunriseAndSunsetTimes(uint32_t currentTime);
 
 static void flashLedToIndicateBatteryLife(void);
+
+static uint32_t *samplesWritten_ptr = NULL;
+static uint32_t *numberOfSamplesInHeader_ptr = NULL;
+static uint32_t *totalNumberOfCompressedSamples_ptr = NULL;
+static uint32_t *timeOffset_ptr = NULL;
+static uint32_t *effectiveSampleRate_ptr = NULL;
+static AM_extendedBatteryState_t *extendedBatteryState_ptr = NULL;
+static int32_t *temperature_ptr = NULL;
+static bool *externalMicrophone_ptr = NULL;
+
+static void AudioMoth_writeWavInfo() {
+
+    /* Write the GUANO data */
+    
+    // uint32_t guanoDataSize = writeGuanoData((char*)compressionBuffer, configSettings, timeOfNextRecording + *timeOffset_ptr, gpsLocationReceived, gpsLastFixLatitude, gpsLastFixLongitude, acousticLocationReceived, acousticLatitude, acousticLongitude, firmwareDescription, firmwareVersion, (uint8_t*)AM_UNIQUE_ID_START_ADDRESS, deploymentID, defaultDeploymentID, "currentFileNmae", *extendedBatteryState_ptr, *temperature_ptr);
+    
+    // FLASH_LED_AND_RETURN_ON_ERROR(AudioMoth_writeToFile(compressionBuffer, guanoDataSize));
+
+    uint32_t guanoDataSize = 0;
+    
+    /* Initialise the WAV header */
+    
+    *samplesWritten_ptr = MAX(*numberOfSamplesInHeader_ptr, *samplesWritten_ptr);
+
+    setHeaderDetails(&wavHeader, *effectiveSampleRate_ptr, *samplesWritten_ptr - *numberOfSamplesInHeader_ptr - *totalNumberOfCompressedSamples_ptr, guanoDataSize);
+
+    setHeaderComment(&wavHeader, configSettings, *timeOfNextRecording + *timeOffset_ptr, (uint8_t*)AM_UNIQUE_ID_START_ADDRESS, deploymentID, defaultDeploymentID, *extendedBatteryState_ptr, *temperature_ptr, *externalMicrophone_ptr, FILE_SIZE_LIMITED, requestedFilterType);
+
+    /* Write the header */
+
+    AudioMoth_seekInFile(0);
+
+    // FLASH_LED_AND_RETURN_ON_ERROR(AudioMoth_writeToFileDebug(&wavHeader, sizeof(wavHeader_t)));
+    AudioMoth_writeToFile(&wavHeader, sizeof(wavHeader_t));
+    AudioMoth_setBothLED(true);
+    AudioMoth_delay(1000);
+    AudioMoth_setBothLED(false);
+    
+    AudioMoth_delay(1000);
+    AudioMoth_setBothLED(true);
+    AudioMoth_delay(1000);
+    AudioMoth_setBothLED(false);
+
+    AudioMoth_delay(1000);
+    AudioMoth_setBothLED(true);
+    AudioMoth_delay(1000);
+    AudioMoth_setBothLED(false);
+
+    /* reset the samples written count */
+    *samplesWritten_ptr = 0;
+}
 
 /* Functions of copy to and from the backup domain */
 
@@ -1872,6 +1924,7 @@ int main(void) {
         uint32_t supplyVoltage = AudioMoth_getSupplyVoltage();
 
         AM_extendedBatteryState_t extendedBatteryState = AudioMoth_getExtendedBatteryState(supplyVoltage);
+        extendedBatteryState_ptr = &extendedBatteryState;
 
         /* Check if low voltage check is enabled and that the voltage is okay */
 
@@ -1894,6 +1947,7 @@ int main(void) {
             AudioMoth_enableTemperature();
 
             int32_t temperature = AudioMoth_getTemperature();
+            temperature_ptr = &temperature;
 
             AudioMoth_disableTemperature();
 
@@ -2166,6 +2220,84 @@ int main(void) {
     }
 
 }
+
+#if 0
+#include "ff.h"
+
+void indicateError(uint8_t errorCode) {
+    if (errorCode < 1 || errorCode > 20) return; // Ignore invalid error codes
+
+    for (uint8_t i = 0; i < errorCode; i++) {
+        AudioMoth_setRedLED(true);
+        AudioMoth_delay(300);  // LED on duration
+        AudioMoth_setRedLED(false);
+        AudioMoth_delay(300);  // LED off duration
+    }
+
+    AudioMoth_delay(1000);  // Pause before next error indication cycle
+}
+
+
+int main(void) {
+    AudioMoth_initialise();
+    static bool appendStart = false;
+    
+    // Ensure the file system is available
+    AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
+    AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
+
+    int num = 1;
+    char filePath[] = "heheFolder.txt";
+    // Open file in append mode
+    if (!AudioMoth_openFile(filePath)) {
+        indicateError(20);
+    }
+    
+    while (num <= 10000) {  // Limit loop for testing; remove for continuous operation
+        
+        if(appendStart) {
+            if (!AudioMoth_appendStartFile(filePath)) {
+                indicateError(5);
+            }
+        }
+        else {
+            if (!AudioMoth_appendFile(filePath)) {
+                indicateError(20);
+            }
+        }
+        AudioMoth_setRedLED(true);
+        AudioMoth_delay(25);
+        
+        char dummyDataBuffer[64];
+        
+        uint32_t total_space = AudioMoth_getTotalSpace();
+        uint32_t free_space = AudioMoth_getFreeSpace();
+
+        snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
+        
+        bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
+        if (!result) {
+            // int errorCode = AudioMoth_writeToFileDebug(dummyDataBuffer, strlen(dummyDataBuffer));
+            indicateError(3);
+            appendStart = true;
+        }
+        else {
+            // indicateError(4);
+            appendStart = false;
+        }
+        
+        // Close file after writing
+        AudioMoth_closeFile();
+        
+        num++;
+        AudioMoth_setRedLED(false);
+        AudioMoth_delay(25);
+    }
+    
+    return 0;
+}
+#endif
+
 
 /* Time zone handler */
 
@@ -2657,6 +2789,9 @@ static void generateFolderAndFilename(char *foldername, char *filename, uint32_t
 
 static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t recordDuration, bool enableLED, AM_extendedBatteryState_t extendedBatteryState, int32_t temperature, uint32_t *fileOpenTime, uint32_t *fileOpenMilliseconds) {
 
+    /* set callback on write error */
+    AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
+    
     /* Initialise buffers */
 
     writeBuffer = 0;
@@ -2672,6 +2807,7 @@ static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t 
     /* Calculate effective sample rate */
 
     uint32_t effectiveSampleRate = configSettings->sampleRate / configSettings->sampleRateDivider;
+    effectiveSampleRate_ptr = &effectiveSampleRate;
 
     /* Set up the digital filter */
 
@@ -2740,6 +2876,7 @@ static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t 
     AM_gainRange_t gainRange = configSettings->enableLowGainRange ? AM_LOW_GAIN_RANGE : AM_NORMAL_GAIN_RANGE;
 
     bool externalMicrophone = AudioMoth_enableMicrophone(gainRange, configSettings->gain, configSettings->clockDivider, configSettings->acquisitionCycles, configSettings->oversampleRate);
+    externalMicrophone_ptr = &externalMicrophone;
 
     AudioMoth_initialiseDirectMemoryAccess(primaryBuffer, secondaryBuffer, numberOfRawSamplesInDMATransfer);
 
@@ -2800,6 +2937,7 @@ static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t 
     /* Calculate time correction for sample rate due to file header */
 
     uint32_t numberOfSamplesInHeader = sizeof(wavHeader_t) / NUMBER_OF_BYTES_IN_SAMPLE;
+    numberOfSamplesInHeader_ptr = &numberOfSamplesInHeader;
 
     int32_t sampleRateTimeOffset = ROUNDED_DIV(numberOfSamplesInHeader * MILLISECONDS_IN_SECOND, effectiveSampleRate);
 
@@ -2810,6 +2948,7 @@ static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t 
     /* Calculate the actual recording start time if the intended start has been missed */
 
     uint32_t timeOffset = millisecondsUntilRecordingShouldStart < 0 ? 1 - millisecondsUntilRecordingShouldStart / MILLISECONDS_IN_SECOND : 0;
+    timeOffset_ptr = &timeOffset;
 
     recordDuration = timeOffset >= recordDuration ? 0 : recordDuration - timeOffset;
 
@@ -2840,12 +2979,14 @@ static AM_recordingState_t makeRecording(uint32_t timeOfNextRecording, uint32_t 
     uint32_t readBuffer = 0;
 
     uint32_t samplesWritten = 0;
+    samplesWritten_ptr = &samplesWritten;
 
     uint32_t buffersProcessed = 0;
 
     uint32_t numberOfCompressedBuffers = 0;
 
     uint32_t totalNumberOfCompressedSamples = 0;
+    totalNumberOfCompressedSamples_ptr = &totalNumberOfCompressedSamples;
 
     uint32_t numberOfTriggeredBuffersWritten = 0;
 

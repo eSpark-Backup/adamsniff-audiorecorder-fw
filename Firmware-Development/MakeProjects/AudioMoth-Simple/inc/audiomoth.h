@@ -205,6 +205,12 @@ void AudioMoth_setGreenLED(bool state);
 bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed);
 void AudioMoth_disableFileSystem(void);
 
+void AudioMoth_writeErrorCbSet(void (*_cb)(void));
+bool AudioMoth_mount(const char* path); 
+bool AudioMoth_unmount(const char* path); 
+uint64_t AudioMoth_getFreeSpace();
+uint64_t AudioMoth_getTotalSpace();
+bool AudioMoth_appendStartFile(char *filename);
 bool AudioMoth_doesFileExist(char *filename);
 
 bool AudioMoth_openFile(char *filename);
@@ -214,6 +220,7 @@ bool AudioMoth_appendFile(char *filename);
 
 bool AudioMoth_seekInFile(uint32_t position);
 bool AudioMoth_writeToFile(void *bytes, uint16_t bytesToWrite);
+int AudioMoth_writeToFileDebug(void *bytes, uint16_t bytesToWrite);
 
 bool AudioMoth_renameFile(char *originalFilename, char *newFilename);
 
