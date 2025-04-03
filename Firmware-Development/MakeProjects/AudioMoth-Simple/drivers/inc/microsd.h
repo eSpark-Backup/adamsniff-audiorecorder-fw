@@ -62,7 +62,7 @@ extern "C" {
 #define CMD55     (55)        /**< APP_CMD */
 #define CMD58     (58)        /**< READ_OCR */
 
-void      MICROSD_Init(void);
+void      MICROSD_Init(bool *sd_status);
 void      MICROSD_Deinit(void);
 
 void      MICROSD_DoubleSpiClkFast(void);

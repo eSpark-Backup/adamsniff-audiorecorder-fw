@@ -446,7 +446,7 @@ typedef struct {
 /* File/Volume controls           */
 /*--------------------------------*/
 
-#if FF_VOLUMES < 1 || FF_VOLUMES > 10
+#if FF_VOLUMES < 1 || FF_VOLUMES > 12
 #error Wrong FF_VOLUMES setting
 #endif
 static FATFS* FatFs[FF_VOLUMES];	/* Pointer to the filesystem objects (logical drives) */
@@ -3155,9 +3155,23 @@ static int get_ldnumber (	/* Returns logical drive number (-1:invalid drive numb
 
 	if (tc == ':') {	/* DOS/Windows style volume ID? */
 		i = FF_VOLUMES;
-		if (IsDigit(*tp) && tp + 2 == tt) {	/* Is there a numeric volume ID + colon? */
-			i = (int)*tp - '0';	/* Get the LD number */
+		// if (IsDigit(*tp) && tp + 2 == tt) {	/* Is there a numeric volume ID + colon? */
+		// 	i = (int)*tp - '0';	/* Get the LD number */
+		// }
+
+		if (IsDigit(*tp)) {  
+			i = 0;
+			while (IsDigit(*tp)) {   /* Extract the full numeric volume ID */
+				i = i * 10 + (*tp - '0');
+				tp++;
+			}
+			if (tp == tt - 1 && i < FF_VOLUMES) {  /* Ensure ':' follows and is within range */
+				vol = i;
+				*path = tt;  /* Move past the volume prefix */
+				return vol;
+			}
 		}
+		
 #if FF_STR_VOLUME_ID == 1	/* Arbitrary string is enabled */
 		else {
 			i = 0;

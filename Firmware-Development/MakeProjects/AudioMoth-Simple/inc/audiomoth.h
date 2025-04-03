@@ -210,6 +210,7 @@ bool AudioMoth_mount(const char* path);
 bool AudioMoth_unmount(const char* path); 
 uint64_t AudioMoth_getFreeSpace();
 uint64_t AudioMoth_getTotalSpace();
+const char* get_sd_card_mount_status();
 bool AudioMoth_appendStartFile(char *filename);
 bool AudioMoth_doesFileExist(char *filename);
 

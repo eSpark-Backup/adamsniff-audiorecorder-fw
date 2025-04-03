@@ -182,8 +182,9 @@ static FIL file;
 static UINT bw;
 
 static bool sdCardMounted = false;
-static char mounted_sd_path[3];
-static bool cardsAvailableForMount[FF_VOLUMES] = {1, 1, 0, 0, 0, 0, 0, 0, 0, 0};  //simulating card detect
+static char mounted_sd_path[4] = {0};
+static bool cardsAvailableForMount[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  //simulating card detect
+static bool sdcard_mounted[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static int currentMountIndex = -1;
 static char currentFilename[32] = {0};
 void (*_writeErrorCb)(void);
@@ -2670,7 +2671,6 @@ void AudioMoth_setGreenLED(bool state) {
 }
 
 /* Functions to handle file system */
-
 bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed) {
 
     /* Check hardware version */
@@ -2686,8 +2686,24 @@ bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed) {
     /* Initialise MicroSD driver */
 
     if (speed == AM_SD_CARD_HIGH_SPEED) MICROSD_DoubleSpiClkFast();
-
-    MICROSD_Init();
+    
+    MICROSD_Init(cardsAvailableForMount);
+    // AudioMoth_setBothLED(true);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // // AudioMoth_delay(1000);
+    // AudioMoth_setBothLED(false);
 
     /* Check SD card status */
 
@@ -2702,6 +2718,9 @@ bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed) {
     // if (f_mount(&fatfs, "0:", 1) != FR_OK) {
     //     return false;
     // }
+
+    
+
     return AudioMoth_autoMount();
 
     /* Return success */
@@ -2731,33 +2750,54 @@ void AudioMoth_disableFileSystem(void) {
 /* Function to mout multiple sd cards */
 
 int pv_get_mount_index() {
-    for (int i = 0; i < FF_VOLUMES; i++) {
-        if (cardsAvailableForMount[i]) {
-            return i;
-        }
-    }
-    return -1;
+    // for (int i = 0; i < FF_VOLUMES; i++) {
+    //     if (cardsAvailableForMount[i]) {
+    //         return i;
+    //     }
+    // }
+    // return -1;
 }
 
 bool AudioMoth_autoMount() {
+    
+    if(sdCardMounted) return true;
 
     bool res = false;
-
     
     // try mounting every available sd card detected
-    do{
-        AudioMoth_setGreenLED(true);
-        AudioMoth_delay(300);
-        AudioMoth_setGreenLED(false);
-        AudioMoth_delay(300);
-        currentMountIndex = pv_get_mount_index();
-    
-        snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", currentMountIndex);
-        
-        res = AudioMoth_mount(mounted_sd_path);
-        if(!res) cardsAvailableForMount[currentMountIndex] = 0; //remove the sd card from detected when unable to mount
+    // do{
+    //     currentMountIndex = pv_get_mount_index();
+    //     if(currentMountIndex != -1) {
+    //         AudioMoth_setGreenLED(true);
+    //         AudioMoth_delay(300);
+    //         AudioMoth_setGreenLED(false);
+    //         AudioMoth_delay(300);
+    //         snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", currentMountIndex);
+            
+    //         res = AudioMoth_mount(mounted_sd_path);
+    //     }
+    //     if(!res) cardsAvailableForMount[currentMountIndex] = 0; //remove the sd card from detected when unable to mount
 
-    }   while(res != true && currentMountIndex != -1);
+    // }   while(res != true && currentMountIndex != -1);
+
+    /* TRY MOUNTING ONE BY ONE UNTIL A SUCCESSFULL MOUNT */
+
+    for(int i = 0; i < FF_VOLUMES; i++){
+        
+        if(!sdcard_mounted[i]) { //check if sdcard was not already mounted in the past
+            snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", i);
+            res = AudioMoth_mount(mounted_sd_path);
+            if(res) {
+                AudioMoth_setGreenLED(true);
+                AudioMoth_delay(300);
+                AudioMoth_setGreenLED(false);
+                AudioMoth_delay(300);
+                sdcard_mounted[i] = true;
+                break;
+            }
+            snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", -1); //mount path invalid
+        }
+    }
 
     return res;
 }
@@ -2782,10 +2822,11 @@ bool AudioMoth_unmount(const char* path) {
 
     AudioMoth_closeFile();
 
+    sdCardMounted = false;
+
     if (f_mount(NULL, path, 1) != FR_OK) {
         return false;
     }
-    sdCardMounted = false;
     return true;
 }
 
@@ -2825,6 +2866,31 @@ uint64_t AudioMoth_getTotalSpace() {
     // sector_size = fs->ssize; // Try to fetch sector size (defined in ffconf.h)
 
     return (uint64_t)total_sectors * sector_size;
+}
+
+const char* get_sd_card_mount_status() {
+    static char status_msg[64];  // Buffer to hold the status message
+    strcpy(status_msg, "SD Cards detected at slots: ");
+    bool found = false;
+
+    for (int i = 0; i < FF_VOLUMES; i++) {
+        if (cardsAvailableForMount[i]) {  // Use the maintained global array
+            char slot_info[8];
+            snprintf(slot_info, sizeof(slot_info), "%d,", i);
+            strcat(status_msg, slot_info);
+            found = true;
+        }
+    }
+    // char pin_info[8];
+    // snprintf(pin_info, sizeof(pin_info), " == %x, %x, %x", detected_pin[0], detected_pin[1], detected_pin[2]);
+    // strcat(status_msg, pin_info);
+
+    // If no SD card detected, return "None"
+    if (!found) {
+        strcpy(status_msg, "No SD cards detected.");
+    }
+
+    return status_msg;
 }
 
 void AudioMoth_checkDiskSpaceAndMount() {
@@ -2890,6 +2956,7 @@ bool AudioMoth_openFile(char *filename) {
     snprintf(_fileName, sizeof(_fileName), "%s/%s", mounted_sd_path, filename);
 
     FRESULT res = f_open(&file, _fileName,  FA_CREATE_ALWAYS | FA_WRITE | FA_READ);
+    // FRESULT res = f_open(&file, filename,  FA_CREATE_ALWAYS | FA_WRITE | FA_READ); //FIXME:
 
     if (res != FR_OK) {
         return false;
@@ -2907,6 +2974,7 @@ bool AudioMoth_appendFile(char *filename) {
     snprintf(_fileName, sizeof(_fileName), "%s/%s", mounted_sd_path, filename);
 
     FRESULT res = f_open(&file, _fileName,  FA_OPEN_ALWAYS | FA_WRITE | FA_READ);
+    // FRESULT res = f_open(&file, filename,  FA_OPEN_ALWAYS | FA_WRITE | FA_READ); //FIXME:
 
     if (res != FR_OK) {
         return false;

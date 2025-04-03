@@ -2246,14 +2246,17 @@ int main(void) {
     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
     AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
 
+    // AudioMoth_unmount("0:");
+    AudioMoth_mount("9:");
+
     int num = 1;
-    char filePath[] = "heheFolder.txt";
+    char filePath[] = "9:/heheFolder.txt";
     // Open file in append mode
     if (!AudioMoth_openFile(filePath)) {
         indicateError(20);
     }
     
-    while (num <= 10000) {  // Limit loop for testing; remove for continuous operation
+    while (num <= 1000000) {  // Limit loop for testing; remove for continuous operation
         
         if(appendStart) {
             if (!AudioMoth_appendStartFile(filePath)) {
@@ -2270,10 +2273,11 @@ int main(void) {
         
         char dummyDataBuffer[64];
         
-        uint32_t total_space = AudioMoth_getTotalSpace();
-        uint32_t free_space = AudioMoth_getFreeSpace();
+        // uint32_t total_space = AudioMoth_getTotalSpace();
+        // uint32_t free_space = AudioMoth_getFreeSpace();
 
-        snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
+        // snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
+        snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "%s\n", get_sd_card_mount_status());
         
         bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
         if (!result) {

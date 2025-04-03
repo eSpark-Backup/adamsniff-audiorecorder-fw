@@ -61,7 +61,9 @@ static uint8_t WaitReady(void)
  *  Initialize the SPI peripheral for microSD card usage.
  *  SPI pins and speed etc. is defined in microsdconfig.h.
  *****************************************************************************/
-void MICROSD_Init(void)
+// void AudioMoth_delay(uint32_t milliseconds);
+
+void MICROSD_Init(bool *sd_status)
 {
   USART_InitSync_TypeDef init = USART_INITSYNC_DEFAULT;
 
@@ -91,10 +93,57 @@ void MICROSD_Init(void)
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CLKPIN, gpioModePushPull, 0);   /* CLK */
   
   TCA6424A_initialize();
-  uint8_t direction[3] = {0x00, 0x0F, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
-  TCA6424A_setAllDirectionSingle(direction);
+  uint8_t direction[3] = {0x00, 0xF0, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
+  // TCA6424A_setAllDirectionSingle(direction);
+  TCA6424A_setBankDirection(0, direction[0]);
+  TCA6424A_setBankDirection(1, direction[1]);
+  TCA6424A_setBankDirection(2, direction[2]);
   uint8_t states[3] = {0xFF, 0xFF, 0xFF}; // Pulled High : All CS Pins, Input pins will be ignored
-  TCA6424A_writeAllSingle(states);
+  // TCA6424A_writeAllSingle(states);
+  TCA6424A_writeBank(0, states[0]);
+  TCA6424A_writeBank(1, states[1]);
+  TCA6424A_writeBank(2, states[2]);
+
+  // AudioMoth_delay(10000);
+
+  // {
+  //   TCA6424A_getBankDirection(0);
+  //   TCA6424A_getBankDirection(1);
+  //   TCA6424A_getBankDirection(2);
+  // }
+  
+  /* Detect SD Cards and return the status */
+  // uint8_t detected_pin[3] = {0};
+  
+  // // Initialize the sd_status array to false
+  // for (int i = 0; i < FF_VOLUMES; i++) {
+  //     sd_status[i] = false;
+  // }
+
+  // // Read the I/O expander
+  // TCA6424A_readAllSingle(detected_pin);
+
+  // uint16_t card_bits = detected_pin[1] >> 4;
+  // card_bits |= (uint16_t)detected_pin[2] << 4;
+
+  // for(int i = 0; i < FF_VOLUMES && i < 12; i++) { 
+  //   sd_status[i] = card_bits & (1 << i);
+  // }
+
+
+  // // Check P14-P17 (detected_pin[1] bits 4-7)
+  // for (int i = 0; i < 4 && i < FF_VOLUMES; i++) {  
+  //   if (!(detected_pin[1] & ((uint8_t)1 << (i + 4)))) {  // Active LOW
+  //       sd_status[i] = true;
+  //   }
+  // }
+
+  // // Check P20-P27 (detected_pin[2] bits 0-7)
+  // for (int i = 0; i < 8; i++) {  
+  //   if (!(detected_pin[2] & ((uint8_t)1 << i))) {  // Active LOW
+  //       sd_status[i + 4] = true;
+  //   }
+  // }
 }
 
 /**************************************************************************//**
