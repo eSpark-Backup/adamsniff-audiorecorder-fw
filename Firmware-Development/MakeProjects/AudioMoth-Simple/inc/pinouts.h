@@ -92,9 +92,9 @@
 #define EBI_AD13                                4
 #define EBI_AD14                                5
 #define EBI_AD15                                6
-#define EBI_A00                                 13
-#define EBI_A01                                 14
-#define EBI_A02                                 15
+#define EBI_A00                                 12
+#define EBI_A01                                 13
+#define EBI_A02                                 14
 
 #define EBI_GPIOPORT_E                          gpioPortE
 #define EBI_AD00                                8
@@ -120,8 +120,8 @@
 #define EBI_A20                                 4
 #define EBI_A21                                 5
 #define EBI_A22                                 6
-#define EBI_A03                                 8
-#define EBI_A04                                 9
+#define EBI_A03                                 9
+#define EBI_A04                                 10
 
 #define EBI_GPIOPORT_C                          gpioPortC
 #define EBI_A05                                 6
