@@ -177,7 +177,7 @@ static configSettings_t defaultConfigSettings = {
     .enableEnergySaverMode = 0,
     .disable48HzDCBlockingFilter = 0,
     .enableLowGainRange = 0,
-    .disableLED = 0
+    .disableLED = 1
 };
 
 /* Main and back-up domain configuration and enumeration flag */

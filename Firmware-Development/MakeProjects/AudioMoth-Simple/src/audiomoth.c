@@ -374,11 +374,11 @@ void AudioMoth_initialise() {
 
     /* Enable interrupt on USB switch position to wake from EM2 */
 
-    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
+    // GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
 
     GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
 
-    GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
+    // GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
 
     GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);
 
@@ -504,7 +504,8 @@ void GPIO_EVEN_IRQHandler(void) {
 
     /* Handle the interrupt */
 
-    if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    // if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
 
     if (interruptMask & ((1 << JCK_DETECT) | (1 << JCK_DETECT_ALT))) AudioMoth_handleMicrophoneChangeInterrupt();
 
@@ -950,10 +951,18 @@ static void setupOpAmp(AM_gainRange_t gainRange, AM_gainSetting_t gainSetting) {
     static OPAMP_ResSel_TypeDef opamp1LowGainRange[] = {opaResSelR2eq0_33R1, opaResSelR2eq0_33R1, opaResSelR2eqR1, opaResSelR2eqR1, opaResSelR2eqR1};
     static OPAMP_ResSel_TypeDef opamp2LowGainRange[] = {opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eq2R1};
 
-    OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
-    OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
 
-    uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
+    OPAMP_ResSel_TypeDef *opamp1Gain = opamp1NormalGainRange;
+    OPAMP_ResSel_TypeDef *opamp2Gain = opamp1NormalGainRange;
+
+    // OPAMP_ResSel_TypeDef *opamp1Gain = opamp1LowGainRange;
+    // OPAMP_ResSel_TypeDef *opamp2Gain = opamp2LowGainRange;
+
+    // uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
+    uint32_t index = AM_GAIN_HIGH;
+    // uint32_t index = AM_GAIN_LOW;
 
     opa1Init.resSel = opamp1Gain[index];
     opa2Init.resSel = opamp2Gain[index];
@@ -1038,6 +1047,7 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
     if (hardwareVersion < AM_VERSION_4) {
 
         adcSingleInit.input = adcSingleInpCh0Ch1;
+        // adcSingleInit.input = adcSingleInpCh7;
 
     } else {
 
@@ -1047,6 +1057,7 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     adcSingleInit.prsEnable = true;
     adcSingleInit.diff = true;
+    // adcSingleInit.diff = false;
     adcSingleInit.rep = false;
 
     if (acquisitionCycles == 16) {
@@ -2316,20 +2327,26 @@ AM_switchPosition_t AudioMoth_getSwitchPosition(void) {
 
     AM_hardwareVersion_t hardwareVersion = BURTC_RetRegGet(AM_BURTC_HARDWARE_VERSION);
 
-    if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
+    // if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
 
-    if (hardwareVersion < AM_VERSION_3) {
+    // if (hardwareVersion < AM_VERSION_3) {
 
-        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
+    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
 
-        return AM_SWITCH_CUSTOM;
+    //     return AM_SWITCH_CUSTOM;
 
-    } else {
+    // } else {
 
-        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
+    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
 
+    //     return AM_SWITCH_USB;
+
+    // }
+    if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
+        return AM_SWITCH_DEFAULT; 
+    }  
+    else {
         return AM_SWITCH_USB;
-
     }
 
 }
