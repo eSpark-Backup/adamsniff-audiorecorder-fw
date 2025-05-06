@@ -16,7 +16,7 @@
 #define AM_FIRMWARE_DESCRIPTION_LENGTH         32
 
 #define AM_EXTERNAL_SRAM_START_ADDRESS         0x80000000
-#define AM_EXTERNAL_SRAM_SIZE_IN_BYTES         (256 * 1024)
+#define AM_EXTERNAL_SRAM_SIZE_IN_BYTES         (1024 * 1024 * 2) // 1 Mega words each word is 16 bits
 
 #define AM_BACKUP_DOMAIN_START_ADDRESS         0x40081120
 #define AM_BACKUP_DOMAIN_SIZE_IN_REGISTERS     120
@@ -216,9 +216,10 @@ bool AudioMoth_doesFileExist(char *filename);
 
 bool AudioMoth_openFile(char *filename);
 bool AudioMoth_openFileToRead(char *filename);
-bool AudioMoth_readFile(char *buffer, uint32_t bufferSize);
+bool AudioMoth_readFile(char *buffer, uint32_t bufferSize, uint32_t* bytesRead);
 bool AudioMoth_appendFile(char *filename);
 
+bool AudioMoth_getFileSize(long *fileSize);
 bool AudioMoth_seekInFile(uint32_t position);
 bool AudioMoth_writeToFile(void *bytes, uint16_t bytesToWrite);
 int AudioMoth_writeToFileDebug(void *bytes, uint16_t bytesToWrite);

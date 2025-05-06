@@ -385,11 +385,11 @@ void AudioMoth_initialise() {
 
     /* Enable interrupt on USB switch position to wake from EM2 */
 
-    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
+    // GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
 
     GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
 
-    GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
+    // GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
 
     GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);
 
@@ -515,7 +515,8 @@ void GPIO_EVEN_IRQHandler(void) {
 
     /* Handle the interrupt */
 
-    if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    // if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
 
     if (interruptMask & ((1 << JCK_DETECT) | (1 << JCK_DETECT_ALT))) AudioMoth_handleMicrophoneChangeInterrupt();
 
@@ -961,10 +962,14 @@ static void setupOpAmp(AM_gainRange_t gainRange, AM_gainSetting_t gainSetting) {
     static OPAMP_ResSel_TypeDef opamp1LowGainRange[] = {opaResSelR2eq0_33R1, opaResSelR2eq0_33R1, opaResSelR2eqR1, opaResSelR2eqR1, opaResSelR2eqR1};
     static OPAMP_ResSel_TypeDef opamp2LowGainRange[] = {opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eq2R1};
 
-    OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
-    OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
 
-    uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
+    OPAMP_ResSel_TypeDef *opamp1Gain = opamp1NormalGainRange;
+    OPAMP_ResSel_TypeDef *opamp2Gain = opamp1NormalGainRange;
+
+    // uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
+    uint32_t index = AM_GAIN_HIGH;
 
     opa1Init.resSel = opamp1Gain[index];
     opa2Init.resSel = opamp2Gain[index];
@@ -973,7 +978,7 @@ static void setupOpAmp(AM_gainRange_t gainRange, AM_gainSetting_t gainSetting) {
 
     OPAMP_Enable(DAC0, OPA1, &opa1Init);
 
-    // OPAMP_Enable(DAC0, OPA2, &opa2Init);
+    OPAMP_Enable(DAC0, OPA2, &opa2Init);
 
     /* Disable the clock */
 
@@ -1048,13 +1053,14 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     if (hardwareVersion < AM_VERSION_4) {
 
-        // adcSingleInit.input = adcSingleInpCh0Ch1;
-        adcSingleInit.input = adcSingleInpCh2Ch3;
+        adcSingleInit.input = adcSingleInpCh0Ch1;
+        // adcSingleInit.input = adcSingleInpCh7;
+        // adcSingleInit.input = adcSingleInpCh2Ch3;
 
     } else {
 
-        // adcSingleInit.input = adcSingleInpCh4Ch5;
-        adcSingleInit.input = adcSingleInpCh2Ch3;
+        adcSingleInit.input = adcSingleInpCh4Ch5;
+        // adcSingleInit.input = adcSingleInpCh2Ch3;
 
     }
 
@@ -2329,20 +2335,26 @@ AM_switchPosition_t AudioMoth_getSwitchPosition(void) {
 
     AM_hardwareVersion_t hardwareVersion = BURTC_RetRegGet(AM_BURTC_HARDWARE_VERSION);
 
-    if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
+    // if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
 
-    if (hardwareVersion < AM_VERSION_3) {
+    // if (hardwareVersion < AM_VERSION_3) {
 
-        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
+    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
 
-        return AM_SWITCH_CUSTOM;
+    //     return AM_SWITCH_CUSTOM;
 
-    } else {
+    // } else {
 
-        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
+    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
 
+    //     return AM_SWITCH_USB;
+
+    // }
+    if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
+        return AM_SWITCH_DEFAULT; 
+    }  
+    else {
         return AM_SWITCH_USB;
-
     }
 
 }
@@ -3027,9 +3039,10 @@ bool AudioMoth_openFileToRead(char *filename) {
 
 }
 
-bool AudioMoth_readFile(char *buffer, uint32_t bufferSize) {
+bool AudioMoth_readFile(char *buffer, uint32_t bufferSize, uint32_t* bytesRead) {
 
     FRESULT res = f_read(&file, buffer, bufferSize, &bw);
+    *bytesRead = bw;
 
     if (res != FR_OK) {
         return false;
@@ -3038,6 +3051,29 @@ bool AudioMoth_readFile(char *buffer, uint32_t bufferSize) {
     return true;
 
 }
+
+bool AudioMoth_getFileSize(long *fileSize) {
+    if (&file == NULL || fileSize == NULL) {
+        return false;
+    }
+
+    if (fseek(&file, 0L, SEEK_END) != 0) {
+        return false;
+    }
+
+    long size = ftell(&file);
+    if (size == -1L) {
+        return false;
+    }
+
+    if (fseek(&file, 0L, SEEK_SET) != 0) {
+        return false;
+    }
+
+    *fileSize = size;
+    return true;
+}
+
 
 bool AudioMoth_seekInFile(uint32_t position) {
 
@@ -3211,14 +3247,14 @@ static void enableEBI(void) {
 
     /* Enable EBI AD08..15 data pins*/
 
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD08, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD09, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD10, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD11, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD12, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD13, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD14, gpioModePushPull, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD15, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD08, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD09, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD10, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD11, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD12, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD13, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD14, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_AD15, gpioModePushPull, 0);
 
     /* Enable EBI A16..24 extension address pins*/
     GPIO_PinModeSet(EBI_GPIOPORT_A, EBI_A00, gpioModePushPull, 0);
@@ -3241,7 +3277,7 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A17, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A18, gpioModePushPull, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A19, gpioModePushPull, 0);
-    // GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A20, gpioModePushPull, 0);
+    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A20, gpioModePushPull, 0);
 
     /* Enable EBI CS0-CS1 */
 
@@ -3254,37 +3290,37 @@ static void enableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_WE, gpioModePushPull, 0);
 
     /* Enable EBI LB/UB */
-    GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_LB, gpioModePushPull, 0);
-	GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_UB, gpioModePushPull, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_LB, gpioModePushPull, 0);
+	// GPIO_PinModeSet(EBI_GPIOPORT_F, EBI_UB, gpioModePushPull, 0);
 
     /* Configure EBI controller, changing default values */
 
     EBI_Init_TypeDef ebiInit = EBI_INIT_DEFAULT;
 
-    ebiInit.mode = ebiModeD16;
+    ebiInit.mode = ebiModeD8A8;
     ebiInit.banks = EBI_BANK0;
     ebiInit.csLines = EBI_CS0 | EBI_CS1;
     ebiInit.readHalfRE = true;
 
     ebiInit.aLow = ebiALowA0;
-    ebiInit.aHigh = ebiAHighA18;
+    ebiInit.aHigh = ebiAHighA21;
 
     /* Address Setup and hold time */
 
-    ebiInit.addrHoldCycles  = 0;
-    ebiInit.addrSetupCycles = 0;
+    ebiInit.addrHoldCycles  = 2;
+    ebiInit.addrSetupCycles = 2;
 
     /* Read cycle times */
 
-    ebiInit.readStrobeCycles = 3;
-    ebiInit.readHoldCycles   = 1;
-    ebiInit.readSetupCycles  = 2;
+    ebiInit.readStrobeCycles = 4;
+    ebiInit.readHoldCycles   = 2;
+    ebiInit.readSetupCycles  = 3;
 
     /* Write cycle times */
 
-    ebiInit.writeStrobeCycles = 6;
-    ebiInit.writeHoldCycles   = 0;
-    ebiInit.writeSetupCycles  = 0;
+    ebiInit.writeStrobeCycles = 10;
+    ebiInit.writeHoldCycles   = 4;
+    ebiInit.writeSetupCycles  = 4;
 
     ebiInit.location = ebiLocation1;
 

@@ -63,7 +63,7 @@
 
 /* SRAM buffer constants */
 
-#define NUMBER_OF_BUFFERS                       8
+#define NUMBER_OF_BUFFERS                       64
 #define NUMBER_OF_BYTES_IN_SAMPLE               2
 #define EXTERNAL_SRAM_SIZE_IN_SAMPLES           (AM_EXTERNAL_SRAM_SIZE_IN_BYTES / NUMBER_OF_BYTES_IN_SAMPLE)
 #define NUMBER_OF_SAMPLES_IN_BUFFER             (EXTERNAL_SRAM_SIZE_IN_SAMPLES / NUMBER_OF_BUFFERS)
@@ -385,7 +385,7 @@ typedef struct {
 
 static const configSettings_t defaultConfigSettings = {
     .time = 0,
-    .gain = AM_GAIN_MEDIUM,
+    .gain = AM_GAIN_HIGH,
     .clockDivider = 4,
     .acquisitionCycles = 16,
     .oversampleRate = 1,
@@ -393,7 +393,7 @@ static const configSettings_t defaultConfigSettings = {
     .sampleRateDivider = 8,
     .sleepDuration = 5,
     .recordDuration = 55,
-    .enableLED = 1,
+    .enableLED = 0,
     .activeRecordingPeriods = 1,
     .recordingPeriods = {
         {.startMinutes = 0, .endMinutes = 0},
@@ -409,8 +409,8 @@ static const configSettings_t defaultConfigSettings = {
     .disableSleepRecordCycle = 0,
     .earliestRecordingTime = 0,
     .latestRecordingTime = 0,
-    .lowerFilterFreq = 0,
-    .higherFilterFreq = 0,
+    .lowerFilterFreq = 20,
+    .higherFilterFreq = 100,
     .amplitudeThreshold = 0,
     .requireAcousticConfiguration = 0,
     .batteryLevelDisplayType = BATTERY_LEVEL,
@@ -1250,7 +1250,7 @@ static int16_t secondaryBuffer[MAXIMUM_SAMPLES_IN_DMA_TRANSFER];
 
 /* Firmware version and description */
 
-static uint8_t firmwareVersion[AM_FIRMWARE_VERSION_LENGTH] = {1, 10, 1};
+static uint8_t firmwareVersion[AM_FIRMWARE_VERSION_LENGTH] = {1, 11, 1};
 
 static uint8_t firmwareDescription[AM_FIRMWARE_DESCRIPTION_LENGTH] = "AudioMoth-Firmware-Basic";
 
@@ -2221,7 +2221,7 @@ int main(void) {
 
 }
 
-#if 0
+#if 1
 #include "ff.h"
 
 void indicateError(uint8_t errorCode) {
@@ -2237,69 +2237,343 @@ void indicateError(uint8_t errorCode) {
     AudioMoth_delay(1000);  // Pause before next error indication cycle
 }
 
+#define PATTERN   0xDEAD
+#define SRAM_SIZE (1024 * 1024) // 1MB in int16_t words
+#define SRAM_TOTAL_SIZE (1024 * 1024) // 2MB
+#define CHUNK_SIZE (10 * 1024)           // 10KB
+#define CHUNK_COUNT (SRAM_TOTAL_SIZE / CHUNK_SIZE)
 
+static char printBuffer[128] = {0};
+static int16_t* sram; // SRAM address table
+static int16_t* iram; // IRAM address table
+
+
+#define SRAM_TOTAL_SIZE (4 * 1024) // 2MB SRAM
+#define BUFFER_SIZE 4096                // Read/write buffer size (4KB)
+#define SRC_FILENAME "input.wav"          // Source file name
+#define DST_FILENAME "output.wav"         // Destination file name
+
+#if 0
 int main(void) {
     AudioMoth_initialise();
-    static bool appendStart = false;
-    
-    // Ensure the file system is available
+    AudioMoth_enableExternalSRAM();
     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
-    AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
-
-    // AudioMoth_unmount("0:");
-    AudioMoth_mount("9:");
-
-    int num = 1;
-    char filePath[] = "9:/heheFolder.txt";
-    // Open file in append mode
-    if (!AudioMoth_openFile(filePath)) {
-        indicateError(20);
+    uint8_t* sramPtr = (uint8_t *)AM_EXTERNAL_SRAM_START_ADDRESS;
+    for (int i = 0; i < 1024; i++) {
+        sramPtr[i] = i & 0xFF;
     }
-    
-    while (num <= 1000000) {  // Limit loop for testing; remove for continuous operation
-        
-        if(appendStart) {
-            if (!AudioMoth_appendStartFile(filePath)) {
-                indicateError(5);
-            }
+
+    // Verify pattern
+    bool error = false;
+    for (int i = 0; i < 1024; i++) {
+        if (sramPtr[i] != (i & 0xFF)) {
+            error = true;
+            break;
         }
-        else {
-            if (!AudioMoth_appendFile(filePath)) {
-                indicateError(20);
-            }
-        }
+    }
+
+    if (error) {
         AudioMoth_setRedLED(true);
-        AudioMoth_delay(25);
-        
-        char dummyDataBuffer[64];
-        
-        // uint32_t total_space = AudioMoth_getTotalSpace();
-        // uint32_t free_space = AudioMoth_getFreeSpace();
-
-        // snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
-        snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "%s\n", get_sd_card_mount_status());
-        
-        bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
-        if (!result) {
-            // int errorCode = AudioMoth_writeToFileDebug(dummyDataBuffer, strlen(dummyDataBuffer));
-            indicateError(3);
-            appendStart = true;
-        }
-        else {
-            // indicateError(4);
-            appendStart = false;
-        }
-        
-        // Close file after writing
-        AudioMoth_closeFile();
-        
-        num++;
-        AudioMoth_setRedLED(false);
-        AudioMoth_delay(25);
+    } else {
+        AudioMoth_setGreenLED(true);
     }
+}
+#endif
+
+#if 0
+int main(void) {
+    AudioMoth_initialise();
+    AudioMoth_enableExternalSRAM();
+    AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
+    AudioMoth_setupSWOForPrint();
+
+    sram = (uint8_t *)AM_EXTERNAL_SRAM_START_ADDRESS;
+    iram = (uint8_t *)malloc(BUFFER_SIZE);
     
+    // Open source file from SD card
+    
+    // if (!AudioMoth_openFileToRead(SRC_FILENAME)) {
+    //     AudioMoth_setRedLED(true);
+    //     AudioMoth_delay(1000);
+    //     AudioMoth_setRedLED(false);
+    //     AudioMoth_delay(1000);
+    //     AudioMoth_setRedLED(true);
+    //     return -1; // Exit if file doesn't exist
+    // }
+
+    // Read from file and copy to SRAM
+    int bytesRead = 0, totalBytes = 0;
+    uint8_t buffer[BUFFER_SIZE] = {"Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quisque volutpat, erat id varius accumsan, orci nulla volutpat nisl, ac semper justo diam in magna. Nam mattis feugiat tellus a commodo. Pellentesque nisi nunc, tempus vitae blandit id, pellentesque sit amet libero. Integer accumsan, elit ac faucibus congue, lorem nunc facilisis elit, id congue odio dui et enim. Ut volutpat porta diam ac suscipit. Suspendisse facilisis augue diam, eget porttitor odio porta vitae. Nullam egestas risus nisl, non molestie orci ultrices a. Nunc mollis nulla condimentum nulla porttitor, vulputate commodo enim ultrices. Phasellus nec ante ut lacus fringilla mattis. Donec et tempus leo, vitae maximus libero. In nec quam mauris. Aenean sollicitudin sed est eget facilisis. Curabitur imperdiet, velit quis eleifend cursus, augue nisl ultrices dolor, nec porta elit lectus ultricies est. Sed ligula diam, imperdiet eget pretium non, auctor vel augue.Duis ullamcorper imperdiet molestie. Cras ornare egestas orci, nec consectetur ex tincidunt non. Curabitur quis ante pretium, aliquam mauris non, euismod erat. Fusce non tempor enim, ut blandit sapien. Phasellus iaculis laoreet velit nec porta. Duis ligula eros, ullamcorper eget dapibus non, commodo quis orci. Sed id sapien sit amet lectus rutrum fermentum. Proin lacinia tincidunt ex, et gravida nunc volutpat quis. Aliquam maximus viverra risus, ac semper orci tempus in. Aliquam in elit iaculis, dignissim turpis ac, tincidunt tellus. Nam luctus, eros sit amet porta viverra, tortor sapien consectetur est, et laoreet arcu arcu vel lectus. Sed non lectus in lacus dictum feugiat. Curabitur sed ex faucibus, ullamcorper erat et, sodales magna. Quisque vitae suscipit ante. Vestibulum dapibus convallis facilisis. Sed non augue consequat, mattis lorem vitae, gravida felis.Maecenas turpis tellus, consequat id odio at, suscipit convallis est. Pellentesque sit amet tortor pharetra, interdum diam et, consequat nisi. Aenean ullamcorper felis quis orci consequat, sit amet interdum lacus dignissim. Etiam ut."};
+    
+    // uint8_t *sramPtr = sram;
+    uint8_t *sramPtr = sram;
+    
+    // memcpy(sramPtr, buffer, strlen(buffer));
+
+    memset(sramPtr, 0xFF, 512);
+
+    // long inputFileSize = 0; 
+    // AudioMoth_getFileSize(&inputFileSize);
+    // totalBytes = inputFileSize;
+
+    // AudioMoth_readFile(sramPtr, SRAM_TOTAL_SIZE, &bytesRead);
+    // do {
+    //     AudioMoth_readFile(buffer, BUFFER_SIZE, &bytesRead);
+    //     memcpy(sramPtr, buffer, bytesRead);
+    //     sramPtr += bytesRead;  // Move pointer in SRAM
+    //     totalBytes += bytesRead;
+    //     AudioMoth_setBothLED(true);
+    //     AudioMoth_delay(10);
+    //     AudioMoth_setBothLED(false);
+    //     AudioMoth_delay(10);
+    // } while ((bytesRead) > 0 && totalBytes < SRAM_TOTAL_SIZE);
+
+    // AudioMoth_closeFile(); // Close source file
+
+    // Open destination file for writing
+    if (!AudioMoth_openFile(DST_FILENAME)) {
+        AudioMoth_setRedLED(true);
+        return -1; // Exit if file can't be opened
+    }
+
+    // Write back from SRAM to SD card
+    // sramPtr = sram;
+    int totalBytesRead = totalBytes;
+    totalBytes = 0;
+
+    // AudioMoth_writeToFile(sramPtr, bytesRead);
+
+
+    // while (totalBytes < totalBytesRead) {
+    //     int chunkSize = (totalBytesRead - totalBytes > BUFFER_SIZE) ? BUFFER_SIZE : (totalBytesRead - totalBytes);
+    //     memcpy(buffer, sramPtr, chunkSize);
+    //     AudioMoth_writeToFile(buffer, chunkSize);
+    //     // AudioMoth_writeToFile(sramPtr, chunkSize);
+    //     sramPtr += chunkSize;
+    //     totalBytes += chunkSize;
+     
+    //     AudioMoth_setBothLED(true);
+    //     AudioMoth_delay(20);
+    //     AudioMoth_setBothLED(false);
+    //     AudioMoth_delay(20);
+    // }
+
+    // memcpy(buffer, sramPtr, strlen(buffer));
+    // AudioMoth_writeToFile(buffer, strlen(buffer));
+
+    typedef struct {
+        uint8_t index;
+        uint8_t value;
+    } MemUpdate;
+    
+    MemUpdate updates[] = {
+        {0, 0x00},
+        {1, 0x11},
+        {2, 0x22},
+        {3, 0x33},
+        {4, 0x44},
+        {5, 0x55},
+        {6, 0x66},
+        {7, 0x77},
+        {8, 0x88},
+        {9, 0x99},
+        {10, 0x0a},
+        {11, 0x0b},
+        {12, 0x0c},
+        {13, 0x0d},
+        {14, 0x0e},
+        {15, 0x0f},
+        {16, 0x1a},
+        {17, 0x1b},
+        {18, 0x1c},
+    };
+    
+    size_t numUpdates = sizeof(updates) / sizeof(updates[0]);
+
+    for (size_t i = 0; i < numUpdates; i++) {
+        sramPtr[updates[i].index] = updates[i].value;
+        AudioMoth_delay(10);
+    
+        if (i == 0) {
+            memcpy(buffer, sramPtr, 16);
+            AudioMoth_writeToFile(buffer, 16);
+            AudioMoth_closeFile();
+        } else {
+            AudioMoth_appendFile(DST_FILENAME);
+            memcpy(buffer, sramPtr, 16);
+            AudioMoth_writeToFile(buffer, 16);
+            AudioMoth_closeFile();
+        }
+        AudioMoth_delay(10);
+    }
+
+    AudioMoth_closeFile();
+
+    AudioMoth_setBothLED(true); // Success indicator
     return 0;
 }
+#endif
+
+#if 0
+int main(void) {
+    AudioMoth_initialise();
+    AudioMoth_enableExternalSRAM();
+    AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
+ 
+    int16_t *sram = (int16_t *)AM_EXTERNAL_SRAM_START_ADDRESS;
+    uint8_t buffer[BUFFER_SIZE] = {0};
+ 
+    typedef struct {
+        uint8_t index;
+        uint16_t value;
+    } MemUpdate;
+ 
+    MemUpdate updates[] = {
+        {0, 0x00AA},
+        {1, 0x11BB},
+        {2, 0x22CC},
+        {3, 0x33DD},
+        {4, 0x44EE},
+        {5, 0x55FF},
+        {6, 0x66AB},
+        {7, 0x77AC},
+        {8, 0x88AD},
+        {9, 0x99AE},
+    };
+ 
+    size_t numUpdates = sizeof(updates) / sizeof(updates[0]);
+ 
+    // 1. Copy all updates into SRAM
+    for (size_t i = 0; i < numUpdates; i++) {
+        sram[updates[i].index] = updates[i].value;
+    }
+ 
+    // 2. Copy entire region from SRAM to buffer with byte swapping (Big-endian)
+    for (size_t i = 0; i < numUpdates; i++) {
+        uint16_t val = sram[i];
+        buffer[2 * i]     = (val >> 8) & 0xFF;  // High byte first
+        buffer[2 * i + 1] = val & 0xFF;         // Then low byte
+    }
+ 
+    // 3. Write once to file
+    if (!AudioMoth_openFile(DST_FILENAME)) {
+        AudioMoth_setRedLED(true);
+        return -1;
+    }
+ 
+    AudioMoth_writeToFile(buffer, numUpdates * 2);
+    AudioMoth_closeFile();
+ 
+    AudioMoth_setBothLED(true); // Indicate success
+    return 0;
+}
+#endif
+
+// int main(void) {
+//     AudioMoth_initialise();
+//     AudioMoth_enableExternalSRAM();
+//     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);    
+
+//     sram = (int16_t*)AM_EXTERNAL_SRAM_START_ADDRESS;
+//     // Fill SRAM with test pattern (0x7d7d)
+//     memset(sram, 125, SRAM_TOTAL_SIZE * 2);
+
+//     AudioMoth_openFile("SRAM_TEST.txt");
+
+//     static int count, fcount;
+//     char printBuffer[128];
+
+//     for (int chunk = 0; chunk < CHUNK_COUNT; chunk++) {
+//         count = 0;
+//         fcount = 0;
+//         int16_t* chunk_start = sram + (chunk * CHUNK_SIZE);
+
+//         // Verify test pattern for this chunk
+//         for (int16_t i = 0; i < CHUNK_SIZE; i++) {
+//             if (chunk_start[i] == 0x7d7d) {
+//                 count++;
+//                 AudioMoth_setGreenLED(true);
+//             } else {
+//                 fcount++;
+//                 AudioMoth_setRedLED(true);
+//                 AudioMoth_setRedLED(false);
+//             }
+//             AudioMoth_setGreenLED(false);
+            
+//             if (i % 1024 == 0) AudioMoth_feedWatchdog();
+//         }
+
+//         snprintf(printBuffer, sizeof(printBuffer), "Chunk %d: Success %d, Fail %d\n", chunk + 1, count, fcount);
+//         AudioMoth_writeToFile(printBuffer, strlen(printBuffer));
+//     }
+
+//     AudioMoth_setBothLED(true);
+//     AudioMoth_closeFile();
+// }
+
+
+// int main(void) {
+//     AudioMoth_initialise();
+//     static bool appendStart = false;
+    
+//     // Ensure the file system is available
+//     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
+//     AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
+
+//     // AudioMoth_unmount("0:");
+//     // AudioMoth_mount("9:");
+
+//     int num = 1;
+//     char filePath[] = "9:/heheFolder.txt";
+//     // Open file in append mode
+//     if (!AudioMoth_openFile(filePath)) {
+//         indicateError(20);
+//     }
+    
+//     while (num <= 1000000) {  // Limit loop for testing; remove for continuous operation
+        
+//         if(appendStart) {
+//             if (!AudioMoth_appendStartFile(filePath)) {
+//                 indicateError(5);
+//             }
+//         }
+//         else {
+//             if (!AudioMoth_appendFile(filePath)) {
+//                 indicateError(20);
+//             }
+//         }
+//         AudioMoth_setRedLED(true);
+//         AudioMoth_delay(25);
+        
+//         char dummyDataBuffer[64];
+        
+//         // uint32_t total_space = AudioMoth_getTotalSpace();
+//         // uint32_t free_space = AudioMoth_getFreeSpace();
+
+//         // snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
+//         snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "%s\n", get_sd_card_mount_status());
+        
+//         bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
+//         if (!result) {
+//             // int errorCode = AudioMoth_writeToFileDebug(dummyDataBuffer, strlen(dummyDataBuffer));
+//             indicateError(3);
+//             appendStart = true;
+//         }
+//         else {
+//             // indicateError(4);
+//             appendStart = false;
+//         }
+        
+//         // Close file after writing
+//         AudioMoth_closeFile();
+        
+//         num++;
+//         AudioMoth_setRedLED(false);
+//         AudioMoth_delay(25);
+//     }
+    
+//     return 0;
+// }
 #endif
 
 
