@@ -16,6 +16,7 @@
 #include "audiomoth.h"
 #include "microphone.h"
 #include "digitalfilter.h"
+#include "tca6408a.h"
 
 /* Useful time constants */
 

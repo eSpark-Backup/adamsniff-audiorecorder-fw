@@ -41,6 +41,8 @@
 #include "usbdescriptors.h"
 
 #include "audiomoth.h"
+#include "tca6408a.h"
+#include "tca6424a.h"
 
 /* Time constants */
 
@@ -372,15 +374,31 @@ void AudioMoth_initialise() {
 
     setupGPIO();
 
+    /* Initialize IO_expander for reading switch position */
+
+    TCA6408A_initialize();
+
+    /* Initialize IO_expander for SD cards CS and CD lines */
+
+    TCA6424A_initialize();
+
+    /* Enable LEDs output*/
+
+    TCA6408A_setPinDirection(TCA6408A_P1, TCA6408A_OUTPUT); // P0.1 as output (GREEN LED)
+    TCA6408A_setPinDirection(TCA6408A_P2, TCA6408A_OUTPUT); // P0.2 as output (RED LED)
+    // TCA6408A_writePin(TCA6408A_P1, TCA6408A_HIGH); // turn on GREEN LED
+    // TCA6408A_writePin(TCA6408A_P2, TCA6408A_HIGH); // turn on RED LED
+
     /* Enable interrupt on USB switch position to wake from EM2 */
 
-    // GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
+    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
+    // GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
+    TCA6408A_setPinDirection(TCA6408A_P0, TCA6408A_INPUT); // P0.0 as input (mode switch)
 
-    GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
-
-    // GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
-
-    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);
+    GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
+    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);        // switch mode interrupt via TCA6408 expander ic
+    
+    GPIO_IntConfig(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, true, true, true);        // SD card detect interrupt via TCA6424 expander ic
 
     NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
 
@@ -505,6 +523,7 @@ void GPIO_EVEN_IRQHandler(void) {
     /* Handle the interrupt */
 
     // if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+
     if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
 
     if (interruptMask & ((1 << JCK_DETECT) | (1 << JCK_DETECT_ALT))) AudioMoth_handleMicrophoneChangeInterrupt();
@@ -1046,8 +1065,8 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     if (hardwareVersion < AM_VERSION_4) {
 
-        adcSingleInit.input = adcSingleInpCh0Ch1;
-        // adcSingleInit.input = adcSingleInpCh7;
+        // adcSingleInit.input = adcSingleInpCh0Ch1;
+        adcSingleInit.input = adcSingleInpCh7;
 
     } else {
 
@@ -2327,27 +2346,30 @@ AM_switchPosition_t AudioMoth_getSwitchPosition(void) {
 
     AM_hardwareVersion_t hardwareVersion = BURTC_RetRegGet(AM_BURTC_HARDWARE_VERSION);
 
-    // if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
+    // return AM_SWITCH_USB;
 
-    // if (hardwareVersion < AM_VERSION_3) {
+    if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
 
-    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
+    if (hardwareVersion < AM_VERSION_3) {
 
-    //     return AM_SWITCH_CUSTOM;
+        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
+        if (TCA6408A_readPin(TCA6408A_P0) == 1)  return AM_SWITCH_USB;
 
-    // } else {
+        return AM_SWITCH_CUSTOM;
 
-    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
+    } else {
 
-    //     return AM_SWITCH_USB;
+        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
 
-    // }
-    if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
-        return AM_SWITCH_DEFAULT; 
-    }  
-    else {
         return AM_SWITCH_USB;
+
     }
+    // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
+    //     return AM_SWITCH_DEFAULT; 
+    // }  
+    // else {
+    //     return AM_SWITCH_USB;
+    // }
 
 }
 
@@ -2657,21 +2679,20 @@ DWORD get_fattime(void) {
 
 void AudioMoth_setRedLED(bool state) {
 
-    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
+    TCA6408A_writePin(TCA6408A_P2, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off RED LED
 
 }
 
 void AudioMoth_setBothLED(bool state) {
 
-    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
-    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
+    TCA6408A_writePin(TCA6408A_P1, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off GREEN LED
+    TCA6408A_writePin(TCA6408A_P2, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off RED LED
 
 }
 
 void AudioMoth_setGreenLED(bool state) {
 
-    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
-
+    TCA6408A_writePin(TCA6408A_P1, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off GREEN LED
 }
 
 /* Functions to handle file system */

@@ -20,19 +20,24 @@
 /* Red and green LED */
 
 #define LED_GREEN_GPIOPORT                      gpioPortC
-#define LED_RED_GPIOPORT                      gpioPortB
+#define LED_RED_GPIOPORT                        gpioPortB
 #define GREEN_LED                               5
 #define RED_LED                                 11
 
-/* Switch 1 sense */
+/* SD_CD interrupt  */
+
+#define SD_CD_INT_GPIOPORT                      gpioPortB       // interrupt port
+#define SD_CD_INT_PIN                           5               // interrupt pin
+
+/* Switch 1 sense (ENABLE) */
 
 #define SWITCH_1_GPIOPORT                       gpioPortD
-#define SWITCH_1_SENSE                          0
+#define SWITCH_1_SENSE                          8
 
-/* Switch 2 position */
+/* Switch 2 position (MODE) (Interrupt pin) */
 
-#define SWITCH_2_GPIOPORT                       gpioPortD
-#define SWITCH_2_SENSE                          8
+#define SWITCH_2_GPIOPORT                       gpioPortB
+#define SWITCH_2_SENSE                          6
 
 /* SRAM power */
 
@@ -92,9 +97,9 @@
 #define EBI_AD13                                4
 #define EBI_AD14                                5
 #define EBI_AD15                                6
-#define EBI_A00                                 13
-#define EBI_A01                                 14
-#define EBI_A02                                 15
+#define EBI_A00                                 12
+#define EBI_A01                                 13
+#define EBI_A02                                 14
 
 #define EBI_GPIOPORT_E                          gpioPortE
 #define EBI_AD00                                8
@@ -120,8 +125,8 @@
 #define EBI_A20                                 4
 #define EBI_A21                                 5
 #define EBI_A22                                 6
-#define EBI_A03                                 8
-#define EBI_A04                                 9
+#define EBI_A03                                 9
+#define EBI_A04                                 10
 
 #define EBI_GPIOPORT_C                          gpioPortC
 #define EBI_A05                                 6

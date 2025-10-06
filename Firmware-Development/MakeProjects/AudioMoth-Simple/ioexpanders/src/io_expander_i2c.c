@@ -5,9 +5,9 @@
 #include "em_cmu.h"
 #include "em_gpio.h"
 #include "em_device.h"
-#include "tca6424a_i2c.h"
+#include "io_expander_i2c.h"
 
-I2C_TypeDef *i2c = TCA6424A_I2C_DEVICE;
+I2C_TypeDef *i2c = IO_EXPANDER_DEVICE;
 
 void I2Cdev_Init()
 {

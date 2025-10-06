@@ -16,8 +16,8 @@ TOOLPATH = $(TOOLCHAIN_PATH)/$(TOOLCHAIN_VERSION)/bin/
 
 # These are the locations of the source and header files
 
-INC = ../cmsis ../device/inc ../emlib/inc ../emusb/inc ../drivers/inc ../fatfs/inc ../tca6424a/inc ../inc
-SRC = ../device/src ../emlib/src ../emusb/src ../drivers/src ../fatfs/src ../tca6424a/src ../src
+INC = ../cmsis ../device/inc ../emlib/inc ../emusb/inc ../drivers/inc ../fatfs/inc ../ioexpanders/inc ../inc
+SRC = ../device/src ../emlib/src ../emusb/src ../drivers/src ../fatfs/src ../ioexpanders/src ../src
 
 # Set the name of the output files
 
@@ -63,23 +63,23 @@ DFLAGS = -MMD
 # Finally the build rules
 
 $(OBJPATH)%.o: %.c
-	@mkdir -p $(OBJPATH)
-	@echo 'Building' $@
+# 	@mkdir -p $(OBJPATH)
+# 	@echo 'Building' $@
 	@$(CC) $(CFLAGS) $(DFLAGS) -O3 -ffunction-sections -fdata-sections -std=c99 -c -o "$@" "$<" $(IFLAGS)
 
 $(OBJPATH)%.o: %.s
-	@mkdir -p $(OBJPATH)
-	@echo 'Building' $@
+# 	@mkdir -p $(OBJPATH)
+# 	@echo 'Building' $@
 	@$(CC) $(CFLAGS) $(DFLAGS) -x assembler-with-cpp -c -o "$@" "$<" $(IFLAGS)
 
 $(FILENAME).bin: $(OBJ)
-	@echo 'Building' $(FILENAME).axf
+# 	@echo 'Building' $(FILENAME).axf
 	@$(CC) $(CFLAGS) $(DFLAGS) -T "audiomoth.ld" -Xlinker --gc-sections -Xlinker -Map="$(FILENAME).map" --specs=nano.specs -o $(FILENAME).axf $(OBJ) -lm -Wl,--start-group -lgcc -lc -lnosys -Wl,--end-group
-	@echo 'Building' $(FILENAME).lst
+# 	@echo 'Building' $(FILENAME).lst
 	@$(COBJDUMP) -d -t -S "$(FILENAME).axf" > "$(FILENAME).lst" 
-	@echo 'Building' $(FILENAME).hex
+# 	@echo 'Building' $(FILENAME).hex
 	@$(COBJCOPY) -O ihex "$(FILENAME).axf" "$(FILENAME).hex"
-	@echo 'Building' $(FILENAME).bin
+# 	@echo 'Building' $(FILENAME).bin
 	@$(COBJCOPY) -O binary "$(FILENAME).axf" "$(FILENAME).bin"
 	@$(CSIZE) -A "$(FILENAME).axf"
 

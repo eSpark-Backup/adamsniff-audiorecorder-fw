@@ -35,16 +35,21 @@ THE SOFTWARE.
 #include "tca6424a.h"
 #include "em_i2c.h"
 #include "em_gpio.h"
-#include "tca6424a_i2c.h"
+#include "io_expander_i2c.h"
 
-uint8_t devAddr;
-uint8_t buffer[3];
+
+#define BANK_0_PIN_DIRECTION 0x00
+#define BANK_1_PIN_DIRECTION 0x0F
+#define BANK_2_PIN_DIRECTION 0xFF
+
+uint8_t devAddr_tca6424a;
+uint8_t buffer_tca6424a[3];
 /** Default constructor, uses default I2C address.
  * @see TCA6424A_DEFAULT_ADDRESS
  */
 void TCA6424A_Construct_Default()
 {
-    devAddr = TCA6424A_DEFAULT_ADDRESS;
+    devAddr_tca6424a = TCA6424A_DEFAULT_ADDRESS;
 }
 
 /** Specific address constructor.
@@ -55,7 +60,7 @@ void TCA6424A_Construct_Default()
  */
 void TCA6424A_Construct(uint8_t address)
 {
-    devAddr = address;
+    devAddr_tca6424a = address;
 }
 
 /** Power on and prepare for general usage.
@@ -69,7 +74,9 @@ void TCA6424A_initialize(void)
 
     GPIO_PinModeSet(IO_EXP_EN_PORT, IO_EXP_EN_PIN, gpioModePushPull, 0); // 0 to enable
 
-    I2Cdev_Init();
+    // I2Cdev_Init();
+    
+    TCA6424A_setAllDirection(BANK_0_PIN_DIRECTION, BANK_1_PIN_DIRECTION, BANK_2_PIN_DIRECTION);     // pin (0-7,10-13) as inputs and (14-17, 20-27) as outputs
 }
 
 /** Verify the I2C connection.
@@ -78,7 +85,7 @@ void TCA6424A_initialize(void)
  */
 bool TCA6424A_testConnection()
 {
-    return I2Cdev_readBytes(devAddr, TCA6424A_RA_INPUT0, 3, buffer) == 3;
+    return I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_INPUT0, 3, buffer_tca6424a) == 3;
 }
 
 // INPUT* registers (x0h - x2h)
@@ -88,8 +95,8 @@ bool TCA6424A_testConnection()
  */
 bool TCA6424A_readPin(uint16_t pin)
 {
-    I2Cdev_readBit(devAddr, TCA6424A_RA_INPUT0 + (pin / 8), pin % 8, buffer);
-    return buffer[0];
+    I2Cdev_readBit(devAddr_tca6424a, TCA6424A_RA_INPUT0 + (pin / 8), pin % 8, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin logic levels from one bank.
  * @param bank Which bank to read (0/1/2 for P0*, P1*, P2* respectively)
@@ -97,8 +104,8 @@ bool TCA6424A_readPin(uint16_t pin)
  */
 uint8_t TCA6424A_readBank(uint8_t bank)
 {
-    I2Cdev_readByte(devAddr, TCA6424A_RA_INPUT0 + bank, buffer);
-    return buffer[0];
+    I2Cdev_readByte(devAddr_tca6424a, TCA6424A_RA_INPUT0 + bank, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin logic levels from all banks.
  * Reads into single 3-byte data container.
@@ -106,7 +113,7 @@ uint8_t TCA6424A_readBank(uint8_t bank)
  */
 void TCA6424A_readAllSingle(uint8_t *banks)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_INPUT0 | TCA6424A_AUTO_INCREMENT, 3, banks);
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_INPUT0 | TCA6424A_AUTO_INCREMENT, 3, banks);
 }
 /** Get all pin logic levels from all banks.
  * Reads into individual 1-byte containers.
@@ -116,10 +123,10 @@ void TCA6424A_readAllSingle(uint8_t *banks)
  */
 void TCA6424A_readAll(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_INPUT0 | TCA6424A_AUTO_INCREMENT, 3, buffer);
-    *bank0 = buffer[0];
-    *bank1 = buffer[1];
-    *bank2 = buffer[2];
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_INPUT0 | TCA6424A_AUTO_INCREMENT, 3, buffer_tca6424a);
+    *bank0 = buffer_tca6424a[0];
+    *bank1 = buffer_tca6424a[1];
+    *bank2 = buffer_tca6424a[2];
 }
 
 // OUTPUT* registers (x4h - x6h)
@@ -131,8 +138,8 @@ void TCA6424A_readAll(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
  */
 bool TCA6424A_getPinOutputLevel(uint16_t pin)
 {
-    I2Cdev_readBit(devAddr, TCA6424A_RA_OUTPUT0 + (pin / 8), pin % 8, buffer);
-    return buffer[0];
+    I2Cdev_readBit(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 + (pin / 8), pin % 8, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin output settings from one bank.
  * Note that this returns the level set in the flip-flop, and does not
@@ -142,8 +149,8 @@ bool TCA6424A_getPinOutputLevel(uint16_t pin)
  */
 uint8_t TCA6424A_getBankOutputLevel(uint8_t bank)
 {
-    I2Cdev_readByte(devAddr, TCA6424A_RA_OUTPUT0 + bank, buffer);
-    return buffer[0];
+    I2Cdev_readByte(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 + bank, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin output settings from all banks.
  * Reads into single 3-byte data container.
@@ -151,7 +158,7 @@ uint8_t TCA6424A_getBankOutputLevel(uint8_t bank)
  */
 void TCA6424A_getAllOutputLevelSingle(uint8_t *banks)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_OUTPUT0, 3, banks);
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_OUTPUT0, 3, banks);
 }
 /** Get all pin output settings from all banks.
  * Reads into individual 1-byte containers. Note that this returns the level
@@ -163,10 +170,10 @@ void TCA6424A_getAllOutputLevelSingle(uint8_t *banks)
  */
 void TCA6424A_getAllOutputLevel(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_OUTPUT0, 3, buffer);
-    *bank0 = buffer[0];
-    *bank1 = buffer[1];
-    *bank2 = buffer[2];
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_OUTPUT0, 3, buffer_tca6424a);
+    *bank0 = buffer_tca6424a[0];
+    *bank1 = buffer_tca6424a[1];
+    *bank2 = buffer_tca6424a[2];
 }
 /** Set a single OUTPUT pin's logic level.
  * @param pin Which pin to write (0-23)
@@ -174,7 +181,7 @@ void TCA6424A_getAllOutputLevel(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
  */
 void TCA6424A_writePin(uint16_t pin, bool value)
 {
-    I2Cdev_writeBit(devAddr, TCA6424A_RA_OUTPUT0 + (pin / 8), pin % 8, value);
+    I2Cdev_writeBit(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 + (pin / 8), pin % 8, value);
 }
 /** Set all OUTPUT pins' logic levels in one bank.
  * @param bank Which bank to write (0/1/2 for P0*, P1*, P2* respectively)
@@ -182,14 +189,14 @@ void TCA6424A_writePin(uint16_t pin, bool value)
  */
 void TCA6424A_writeBank(uint8_t bank, uint8_t value)
 {
-    I2Cdev_writeByte(devAddr, TCA6424A_RA_OUTPUT0 + bank, value);
+    I2Cdev_writeByte(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 + bank, value);
 }
 /** Set all OUTPUT pins' logic levels in all banks.
  * @param banks All pins' new logic values (P00-P27) in 3-byte array
  */
 void TCA6424A_writeAllSingle(uint8_t *banks)
 {
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_OUTPUT0 | TCA6424A_AUTO_INCREMENT, 3, banks);
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 | TCA6424A_AUTO_INCREMENT, 3, banks);
 }
 /** Set all OUTPUT pins' logic levels in all banks.
  * @param bank0 Bank 0's new logic values (P00-P07)
@@ -198,10 +205,10 @@ void TCA6424A_writeAllSingle(uint8_t *banks)
  */
 void TCA6424A_writeAll(uint8_t bank0, uint8_t bank1, uint8_t bank2)
 {
-    buffer[0] = bank0;
-    buffer[1] = bank1;
-    buffer[2] = bank2;
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_OUTPUT0 | TCA6424A_AUTO_INCREMENT, 3, buffer);
+    buffer_tca6424a[0] = bank0;
+    buffer_tca6424a[1] = bank1;
+    buffer_tca6424a[2] = bank2;
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_OUTPUT0 | TCA6424A_AUTO_INCREMENT, 3, buffer_tca6424a);
 }
 
 // POLARITY* registers (x8h - xAh)
@@ -211,8 +218,8 @@ void TCA6424A_writeAll(uint8_t bank0, uint8_t bank1, uint8_t bank2)
  */
 bool TCA6424A_getPinPolarity(uint16_t pin)
 {
-    I2Cdev_readBit(devAddr, TCA6424A_RA_POLARITY0 + (pin / 8), pin % 8, buffer);
-    return buffer[0];
+    I2Cdev_readBit(devAddr_tca6424a, TCA6424A_RA_POLARITY0 + (pin / 8), pin % 8, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin polarity (normal/inverted) settings from one bank.
  * @param bank Which bank to read (0/1/2 for P0*, P1*, P2* respectively)
@@ -220,8 +227,8 @@ bool TCA6424A_getPinPolarity(uint16_t pin)
  */
 uint8_t TCA6424A_getBankPolarity(uint8_t bank)
 {
-    I2Cdev_readByte(devAddr, TCA6424A_RA_POLARITY0 + bank, buffer);
-    return buffer[0];
+    I2Cdev_readByte(devAddr_tca6424a, TCA6424A_RA_POLARITY0 + bank, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin polarity (normal/inverted) settings from all banks.
  * Reads into single 3-byte data container.
@@ -229,7 +236,7 @@ uint8_t TCA6424A_getBankPolarity(uint8_t bank)
  */
 void TCA6424A_getAllPolaritySingle(uint8_t *banks)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_POLARITY0, 3, banks);
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_POLARITY0, 3, banks);
 }
 /** Get all pin polarity (normal/inverted) settings from all banks.
  * Reads into individual 1-byte containers.
@@ -239,10 +246,10 @@ void TCA6424A_getAllPolaritySingle(uint8_t *banks)
  */
 void TCA6424A_getAllPolarity(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_POLARITY0, 3, buffer);
-    *bank0 = buffer[0];
-    *bank1 = buffer[1];
-    *bank2 = buffer[2];
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_POLARITY0, 3, buffer_tca6424a);
+    *bank0 = buffer_tca6424a[0];
+    *bank1 = buffer_tca6424a[1];
+    *bank2 = buffer_tca6424a[2];
 }
 /** Set a single pin's polarity (normal/inverted) setting.
  * @param pin Which pin to write (0-23)
@@ -250,7 +257,7 @@ void TCA6424A_getAllPolarity(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
  */
 void TCA6424A_setPinPolarity(uint16_t pin, bool polarity)
 {
-    I2Cdev_writeBit(devAddr, TCA6424A_RA_POLARITY0 + (pin / 8), pin % 8, polarity);
+    I2Cdev_writeBit(devAddr_tca6424a, TCA6424A_RA_POLARITY0 + (pin / 8), pin % 8, polarity);
 }
 /** Set all pin polarity (normal/inverted) settings in one bank.
  * @param bank Which bank to write (0/1/2 for P0*, P1*, P2* respectively)
@@ -258,14 +265,14 @@ void TCA6424A_setPinPolarity(uint16_t pin, bool polarity)
  */
 void TCA6424A_setBankPolarity(uint8_t bank, uint8_t polarity)
 {
-    I2Cdev_writeByte(devAddr, TCA6424A_RA_POLARITY0 + bank, polarity);
+    I2Cdev_writeByte(devAddr_tca6424a, TCA6424A_RA_POLARITY0 + bank, polarity);
 }
 /** Set all pin polarity (normal/inverted) settings in all banks.
  * @param banks All pins' new logic values (P00-P27) in 3-byte array
  */
 void TCA6424A_setAllPolaritySingle(uint8_t *banks)
 {
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_POLARITY0 | TCA6424A_AUTO_INCREMENT, 3, banks);
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_POLARITY0 | TCA6424A_AUTO_INCREMENT, 3, banks);
 }
 /** Set all pin polarity (normal/inverted) settings in all banks.
  * @param bank0 Bank 0's new polarity values (P00-P07)
@@ -274,10 +281,10 @@ void TCA6424A_setAllPolaritySingle(uint8_t *banks)
  */
 void TCA6424A_setAllPolarity(uint8_t bank0, uint8_t bank1, uint8_t bank2)
 {
-    buffer[0] = bank0;
-    buffer[1] = bank1;
-    buffer[2] = bank2;
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_POLARITY0 | TCA6424A_AUTO_INCREMENT, 3, buffer);
+    buffer_tca6424a[0] = bank0;
+    buffer_tca6424a[1] = bank1;
+    buffer_tca6424a[2] = bank2;
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_POLARITY0 | TCA6424A_AUTO_INCREMENT, 3, buffer_tca6424a);
 }
 
 // CONFIG* registers (xCh - xEh)
@@ -287,8 +294,8 @@ void TCA6424A_setAllPolarity(uint8_t bank0, uint8_t bank1, uint8_t bank2)
  */
 bool TCA6424A_getPinDirection(uint16_t pin)
 {
-    I2Cdev_readBit(devAddr, TCA6424A_RA_CONFIG0 + (pin / 8), pin % 8, buffer);
-    return buffer[0];
+    I2Cdev_readBit(devAddr_tca6424a, TCA6424A_RA_CONFIG0 + (pin / 8), pin % 8, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin direction (I/O) settings from one bank.
  * @param bank Which bank to read (0/1/2 for P0*, P1*, P2* respectively)
@@ -296,8 +303,8 @@ bool TCA6424A_getPinDirection(uint16_t pin)
  */
 uint8_t TCA6424A_getBankDirection(uint8_t bank)
 {
-    I2Cdev_readByte(devAddr, TCA6424A_RA_CONFIG0 + bank, buffer);
-    return buffer[0];
+    I2Cdev_readByte(devAddr_tca6424a, TCA6424A_RA_CONFIG0 + bank, buffer_tca6424a);
+    return buffer_tca6424a[0];
 }
 /** Get all pin direction (I/O) settings from all banks.
  * Reads into single 3-byte data container.
@@ -305,7 +312,7 @@ uint8_t TCA6424A_getBankDirection(uint8_t bank)
  */
 void TCA6424A_getAllDirectionSingle(uint8_t *banks)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_CONFIG0, 3, banks);
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_CONFIG0, 3, banks);
 }
 /** Get all pin direction (I/O) settings from all banks.
  * Reads into individual 1-byte containers.
@@ -315,10 +322,10 @@ void TCA6424A_getAllDirectionSingle(uint8_t *banks)
  */
 void TCA6424A_getAllDirection(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
 {
-    I2Cdev_readBytes(devAddr, TCA6424A_RA_CONFIG0, 3, buffer);
-    *bank0 = buffer[0];
-    *bank1 = buffer[1];
-    *bank2 = buffer[2];
+    I2Cdev_readBytes(devAddr_tca6424a, TCA6424A_RA_CONFIG0, 3, buffer_tca6424a);
+    *bank0 = buffer_tca6424a[0];
+    *bank1 = buffer_tca6424a[1];
+    *bank2 = buffer_tca6424a[2];
 }
 /** Set a single pin's direction (I/O) setting.
  * @param pin Which pin to write (0-23)
@@ -326,7 +333,7 @@ void TCA6424A_getAllDirection(uint8_t *bank0, uint8_t *bank1, uint8_t *bank2)
  */
 void TCA6424A_setPinDirection(uint16_t pin, bool direction)
 {
-    I2Cdev_writeBit(devAddr, TCA6424A_RA_CONFIG0 + (pin / 8), pin % 8, direction);
+    I2Cdev_writeBit(devAddr_tca6424a, TCA6424A_RA_CONFIG0 + (pin / 8), pin % 8, direction);
 }
 /** Set all pin direction (I/O) settings in one bank.
  * @param bank Which bank to read (0/1/2 for P0*, P1*, P2* respectively)
@@ -334,14 +341,14 @@ void TCA6424A_setPinDirection(uint16_t pin, bool direction)
  */
 void TCA6424A_setBankDirection(uint8_t bank, uint8_t direction)
 {
-    I2Cdev_writeByte(devAddr, TCA6424A_RA_CONFIG0 + bank, direction);
+    I2Cdev_writeByte(devAddr_tca6424a, TCA6424A_RA_CONFIG0 + bank, direction);
 }
 /** Set all pin direction (I/O) settings in all banks.
  * @param banks All pins' new direction values (P00-P27) in 3-byte array
  */
 void TCA6424A_setAllDirectionSingle(uint8_t *banks)
 {
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_CONFIG0 | TCA6424A_AUTO_INCREMENT, 3, banks);
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_CONFIG0 | TCA6424A_AUTO_INCREMENT, 3, banks);
 }
 /** Set all pin direction (I/O) settings in all banks.
  * @param bank0 Bank 0's new direction values (P00-P07)
@@ -350,8 +357,8 @@ void TCA6424A_setAllDirectionSingle(uint8_t *banks)
  */
 void TCA6424A_setAllDirection(uint8_t bank0, uint8_t bank1, uint8_t bank2)
 {
-    buffer[0] = bank0;
-    buffer[1] = bank1;
-    buffer[2] = bank2;
-    I2Cdev_writeBytes(devAddr, TCA6424A_RA_CONFIG0 | TCA6424A_AUTO_INCREMENT, 3, buffer);
+    buffer_tca6424a[0] = bank0;
+    buffer_tca6424a[1] = bank1;
+    buffer_tca6424a[2] = bank2;
+    I2Cdev_writeBytes(devAddr_tca6424a, TCA6424A_RA_CONFIG0 | TCA6424A_AUTO_INCREMENT, 3, buffer_tca6424a);
 }

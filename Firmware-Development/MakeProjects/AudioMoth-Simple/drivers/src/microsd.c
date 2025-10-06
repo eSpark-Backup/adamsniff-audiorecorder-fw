@@ -90,11 +90,11 @@ void MICROSD_Init(void)
 //   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CSPIN, gpioModePushPull, 1);    /* CS */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CLKPIN, gpioModePushPull, 0);   /* CLK */
   
-  TCA6424A_initialize();
-  uint8_t direction[3] = {0x00, 0x0F, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
-  TCA6424A_setAllDirectionSingle(direction);
-  uint8_t states[3] = {0xFF, 0xFF, 0xFF}; // Pulled High : All CS Pins, Input pins will be ignored
-  TCA6424A_writeAllSingle(states);
+  // // TCA6424A_initialize();         // initialized in audiomoth.c
+  // uint8_t direction[3] = {0x00, 0x0F, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
+  // TCA6424A_setAllDirectionSingle(direction);
+  // uint8_t states[3] = {0xFF, 0xFF, 0xFF}; // Pulled High : All CS Pins, Input pins will be ignored
+  // TCA6424A_writeAllSingle(states);
 }
 
 /**************************************************************************//**
@@ -147,7 +147,7 @@ uint8_t MICROSD_XferSpi(uint8_t data)
 void MICROSD_Deselect(BYTE drv)
 {
 //   GPIO->P[MICROSD_GPIOPORT].DOUTSET = 1 << MICROSD_CSPIN;   /* CS pin high. */
-  TCA6424A_writePin(drv, 1); // drv no. is mapped with CS pin no.
+  TCA6424A_writePin(drv, TCA6424A_HIGH); // drv no. is mapped with CS pin no.
   MICROSD_XferSpi(0xff);
 }
 
@@ -158,7 +158,8 @@ void MICROSD_Deselect(BYTE drv)
 int MICROSD_Select(BYTE drv)
 {
 //   GPIO->P[MICROSD_GPIOPORT].DOUTCLR = 1 << MICROSD_CSPIN;   /* CS pin low. */
-  TCA6424A_writePin(drv, 0); // drv no. is mapped with CS pin no.
+  TCA6424A_writeAll(0xFF, 0xFF, 0xFF); // set all CS pins high
+  TCA6424A_writePin(drv, TCA6424A_LOW); // drv no. is mapped with CS pin no.
   if (WaitReady() != 0xFF) {
     MICROSD_Deselect(drv);
     return 0;
