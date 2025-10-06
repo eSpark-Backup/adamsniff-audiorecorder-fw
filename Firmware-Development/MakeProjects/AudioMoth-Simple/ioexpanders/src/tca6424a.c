@@ -39,7 +39,7 @@ THE SOFTWARE.
 
 
 #define BANK_0_PIN_DIRECTION 0x00
-#define BANK_1_PIN_DIRECTION 0x0F
+#define BANK_1_PIN_DIRECTION 0xF0
 #define BANK_2_PIN_DIRECTION 0xFF
 
 uint8_t devAddr_tca6424a;
@@ -77,6 +77,7 @@ void TCA6424A_initialize(void)
     // I2Cdev_Init();
     
     TCA6424A_setAllDirection(BANK_0_PIN_DIRECTION, BANK_1_PIN_DIRECTION, BANK_2_PIN_DIRECTION);     // pin (0-7,10-13) as inputs and (14-17, 20-27) as outputs
+    TCA6424A_writeAll(0xFF, 0xFF, 0xFF);        // set all pins high (inputs are high impedance, outputs are high)
 }
 
 /** Verify the I2C connection.
