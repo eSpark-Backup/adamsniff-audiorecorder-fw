@@ -17,22 +17,27 @@
 #define BAT_MON_GPIOPORT                        gpioPortC
 #define BAT_MON_ENABLE                          3
 
-/* Red and green LED */
+// /* Red and green LED */
 
-#define LED_GREEN_GPIOPORT                      gpioPortC
-#define LED_RED_GPIOPORT                      gpioPortB
-#define GREEN_LED                               5
-#define RED_LED                                 11
+// #define LED_GREEN_GPIOPORT                      gpioPortC
+// #define GREEN_LED                               5
+// #define LED_RED_GPIOPORT                        gpioPortB
+// #define RED_LED                                 11
 
-/* Switch 1 sense */
+/* SD_CD interrupt  */
+
+#define SD_CD_INT_GPIOPORT                      gpioPortB       // interrupt port
+#define SD_CD_INT_PIN                           5               // interrupt pin
+
+/* Switch 1 sense (ENABLE) */
 
 #define SWITCH_1_GPIOPORT                       gpioPortD
-#define SWITCH_1_SENSE                          0
+#define SWITCH_1_SENSE                          8
 
-/* Switch 2 position */
+/* Switch 2 position (MODE) (Interrupt pin) */
 
-#define SWITCH_2_GPIOPORT                       gpioPortD
-#define SWITCH_2_SENSE                          8
+#define SWITCH_2_GPIOPORT                       gpioPortB
+#define SWITCH_2_SENSE                          6
 
 /* SRAM power */
 
@@ -105,12 +110,12 @@
 #define EBI_AD05                                13
 #define EBI_AD06                                14
 #define EBI_AD07                                15
+#define EBI_A07                                 0
 #define EBI_A08                                 1
 #define EBI_A11                                 4
 #define EBI_A12                                 5
 #define EBI_A13                                 6
 #define EBI_A14                                 7
-#define EBI_A07                                 0
 
 #define EBI_GPIOPORT_B                          gpioPortB
 #define EBI_A16                                 0

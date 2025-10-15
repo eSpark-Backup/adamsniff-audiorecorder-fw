@@ -41,6 +41,8 @@
 #include "usbdescriptors.h"
 
 #include "audiomoth.h"
+#include "tca6408a.h"
+#include "tca6424a.h"
 
 /* Time constants */
 
@@ -177,14 +179,45 @@ STATIC_UBUF(transmitBuffer, 2 * AM_USB_BUFFERSIZE);
 
 /* SD card variables */
 
+
 static FATFS fatfs;
 static FIL file;
 static UINT bw;
 
-static bool sdCardMounted = false;
+// static bool sdCardMounted = false;
 static char mounted_sd_path[4] = {0};
-static bool cardsAvailableForMount[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  //simulating card detect
-static bool sdcard_mounted[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+// static bool cardsAvailableForMount[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};  //simulating card detect
+// static bool sdcard_mounted[FF_VOLUMES] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+sdCards_t sdCards[TOTAL_SD_CARDS] = {
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}},
+    {false, false, {0}}
+};
+// sdCards_t sdCards[TOTAL_SD_CARDS] = {
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/},
+//     {false, false/*, {0}*/}
+// };
+
 static int currentMountIndex = -1;
 static char currentFilename[32] = {0};
 void (*_writeErrorCb)(void);
@@ -245,7 +278,9 @@ void AudioMoth_initialise() {
 
     SystemInit();
 
-    /* Enable high frequency HFXO clock */
+    // AudioMoth_setupSWOForPrint();        // enable SWO for debug prints
+
+    /* Enable high frequency HFXO clock, causing issue with SWO debug prints */
 
     CMU_OscillatorEnable(cmuOsc_HFXO, true, true);
 
@@ -383,19 +418,32 @@ void AudioMoth_initialise() {
 
     setupGPIO();
 
+    /* Initialize IO_expander for reading switch position */
+
+    TCA6408A_initialize();
+
+    /* Initialize IO_expander for SD cards CS and CD lines */
+
+    TCA6424A_initialize();
+
     /* Enable interrupt on USB switch position to wake from EM2 */
 
-    // GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
-
-    GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
-
-    // GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
-
-    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);
+    GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
+    GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
+    
+    GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);        // switch mode interrupt pin setup as input
+    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, false, true, true);        // switch mode interrupt via TCA6408 expander ic
+    
+    /* Enable interrupt on SD Card Detect interrupt line */
+    
+    GPIO_PinModeSet(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, gpioModeInput, 0);       // SD card detect interrupt pin setup as input
+    GPIO_IntConfig(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, false, true, true);        // SD card detect interrupt via TCA6424 expander ic
 
     NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
+    NVIC_ClearPendingIRQ(GPIO_ODD_IRQn);
 
     NVIC_EnableIRQ(GPIO_EVEN_IRQn);
+    NVIC_EnableIRQ(GPIO_ODD_IRQn);
 
     /* Start the watch dog timer */
 
@@ -515,12 +563,28 @@ void GPIO_EVEN_IRQHandler(void) {
 
     /* Handle the interrupt */
 
-    // if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
-    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_1_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt_ioExpander();
 
     if (interruptMask & ((1 << JCK_DETECT) | (1 << JCK_DETECT_ALT))) AudioMoth_handleMicrophoneChangeInterrupt();
 
 }
+
+/* Already defined in gps.c */
+// void GPIO_ODD_IRQHandler(void) {
+
+//     /* Get the interrupt mask */
+
+//     uint32_t interruptMask = GPIO_IntGet();
+
+//     /* Clear the interrupt */
+
+//     GPIO_IntClear(interruptMask);
+
+//     /* SD CD card handle */
+//     if (interruptMask & (1 << SD_CD_INT_PIN)) AudioMoth_handleSDCardInterrupt();
+
+// }
 
 void ADC0_IRQHandler(void) {
 
@@ -2335,27 +2399,29 @@ AM_switchPosition_t AudioMoth_getSwitchPosition(void) {
 
     AM_hardwareVersion_t hardwareVersion = BURTC_RetRegGet(AM_BURTC_HARDWARE_VERSION);
 
-    // if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
+    if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
 
-    // if (hardwareVersion < AM_VERSION_3) {
+    if (hardwareVersion < AM_VERSION_3) {
 
-    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
+        if (TCA6408A_readPin(TCA6408A_P0) == 1)  return AM_SWITCH_USB;
+        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
 
-    //     return AM_SWITCH_CUSTOM;
+        return AM_SWITCH_CUSTOM;
 
-    // } else {
+    } else {
 
-    //     if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
+        if (TCA6408A_readPin(TCA6408A_P0) == 1)  return AM_SWITCH_CUSTOM;
+        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
 
-    //     return AM_SWITCH_USB;
-
-    // }
-    if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
-        return AM_SWITCH_DEFAULT; 
-    }  
-    else {
         return AM_SWITCH_USB;
+
     }
+    // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 0){
+    //     return AM_SWITCH_DEFAULT; 
+    // }  
+    // else {
+    //     return AM_SWITCH_USB;
+    // }
 
 }
 
@@ -2665,20 +2731,20 @@ DWORD get_fattime(void) {
 
 void AudioMoth_setRedLED(bool state) {
 
-    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
+    TCA6408A_writePin(TCA6408A_P2, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off RED LED
 
 }
 
 void AudioMoth_setBothLED(bool state) {
 
-    GPIO_PinModeSet(LED_RED_GPIOPORT, RED_LED, gpioModePushPull, state);
-    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
+    TCA6408A_writePin(TCA6408A_P1, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off GREEN LED
+    TCA6408A_writePin(TCA6408A_P2, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off RED LED
 
 }
 
 void AudioMoth_setGreenLED(bool state) {
 
-    GPIO_PinModeSet(LED_GREEN_GPIOPORT, GREEN_LED, gpioModePushPull, state);
+    TCA6408A_writePin(TCA6408A_P1, (state) ? TCA6408A_HIGH : TCA6408A_LOW); // turn off GREEN LED
 
 }
 
@@ -2699,7 +2765,8 @@ bool AudioMoth_enableFileSystem(AM_sdCardSpeed_t speed) {
 
     if (speed == AM_SD_CARD_HIGH_SPEED) MICROSD_DoubleSpiClkFast();
     
-    MICROSD_Init(cardsAvailableForMount);
+    // MICROSD_Init(cardsAvailableForMount);
+    MICROSD_Init(NULL);
     // AudioMoth_setBothLED(true);
     // // AudioMoth_delay(1000);
     // // AudioMoth_delay(1000);
@@ -2762,54 +2829,78 @@ void AudioMoth_disableFileSystem(void) {
 /* Function to mout multiple sd cards */
 
 int pv_get_mount_index() {
-    // for (int i = 0; i < FF_VOLUMES; i++) {
-    //     if (cardsAvailableForMount[i]) {
-    //         return i;
-    //     }
-    // }
-    // return -1;
+    for (int i = 0; i < TOTAL_SD_CARDS; i++) {
+        if (sdCards[i].available && !sdCards[i].mounted) {
+        // if (cardsAvailableForMount[i]) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 bool AudioMoth_autoMount() {
     
-    if(sdCardMounted) return true;
+    // if(sdCardMounted) return true;
 
     bool res = false;
     
     // try mounting every available sd card detected
-    // do{
-    //     currentMountIndex = pv_get_mount_index();
-    //     if(currentMountIndex != -1) {
-    //         AudioMoth_setGreenLED(true);
-    //         AudioMoth_delay(300);
-    //         AudioMoth_setGreenLED(false);
-    //         AudioMoth_delay(300);
-    //         snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", currentMountIndex);
+    do {
+        currentMountIndex = pv_get_mount_index();
+        if(currentMountIndex != -1) {
+            AudioMoth_setGreenLED(true);
+            AudioMoth_delay(300);
+            AudioMoth_setGreenLED(false);
+            AudioMoth_delay(300);
+            snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", currentMountIndex);
             
-    //         res = AudioMoth_mount(mounted_sd_path);
-    //     }
-    //     if(!res) cardsAvailableForMount[currentMountIndex] = 0; //remove the sd card from detected when unable to mount
-
-    // }   while(res != true && currentMountIndex != -1);
-
-    /* TRY MOUNTING ONE BY ONE UNTIL A SUCCESSFULL MOUNT */
-
-    for(int i = 0; i < FF_VOLUMES; i++){
-        
-        if(!sdcard_mounted[i]) { //check if sdcard was not already mounted in the past
-            snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", i);
             res = AudioMoth_mount(mounted_sd_path);
-            if(res) {
-                AudioMoth_setGreenLED(true);
-                AudioMoth_delay(300);
-                AudioMoth_setGreenLED(false);
-                AudioMoth_delay(300);
-                sdcard_mounted[i] = true;
-                break;
-            }
-            snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", -1); //mount path invalid
+            sdCards[currentMountIndex].mounted = res;
         }
-    }
+        // if(!res) cardsAvailableForMount[currentMountIndex] = 0; //remove the sd card from detected when unable to mount
+
+    }   while(res != true && currentMountIndex != -1);
+
+    // /* TRY MOUNTING ONE BY ONE UNTIL A SUCCESSFULL MOUNT */
+
+    // for(int i = 0; i < FF_VOLUMES; i++) {
+
+    //     MICROSD_Select(i);
+    //     DSTATUS resCard = disk_initialize(i);
+
+    //     if (resCard == STA_NOINIT) {
+    //         printf("SD init failed on slot %d\n", i);
+    //         continue;
+    //     }
+    //     else if (resCard == STA_NODISK) {
+    //         printf("No SD card on slot %d\n", i);
+    //         continue;
+    //     }
+    //     else if (resCard == STA_PROTECT) {
+    //         printf("SD card write protected on slot %d\n", i);
+    //         continue;
+    //     }
+        
+    //     if(!sdCards[i].mounted) { //check if sdcard was not already mounted in the past
+    //     // if(!sdcard_mounted[i]) { //check if sdcard was not already mounted in the past
+    //         snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", i);
+    //         res = AudioMoth_mount(mounted_sd_path);
+    //         if(res) {
+    //             AudioMoth_setGreenLED(true);
+    //             AudioMoth_delay(300);
+    //             AudioMoth_setGreenLED(false);
+    //             AudioMoth_delay(300);
+    //             // sdcard_mounted[i] = true;
+    //             sdCards[i].mounted = true;
+    //             // printf("Mounted SD card at slot %d\n", i);
+    //             break;
+    //         }
+    //         else {
+    //             // printf("Failed to mount SD card at slot %d\n", i);
+    //         }
+    //         snprintf(mounted_sd_path, sizeof(mounted_sd_path), "%d:", -1); //mount path invalid
+    //     }
+    // }
 
     return res;
 }
@@ -2818,7 +2909,7 @@ bool AudioMoth_mount(const char* path) {
     if (f_mount(&fatfs, path, 1) != FR_OK) {
         return false;
     }
-    sdCardMounted = true;
+    // sdCardMounted = true;
     return true;
 }
 
@@ -2834,7 +2925,7 @@ bool AudioMoth_unmount(const char* path) {
 
     AudioMoth_closeFile();
 
-    sdCardMounted = false;
+    // sdCardMounted = false;
 
     if (f_mount(NULL, path, 1) != FR_OK) {
         return false;
@@ -2882,11 +2973,12 @@ uint64_t AudioMoth_getTotalSpace() {
 
 const char* get_sd_card_mount_status() {
     static char status_msg[64];  // Buffer to hold the status message
-    strcpy(status_msg, "SD Cards detected at slots: ");
+    // strcpy(status_msg, "SD Cards detected at slots: ");
     bool found = false;
 
-    for (int i = 0; i < FF_VOLUMES; i++) {
-        if (cardsAvailableForMount[i]) {  // Use the maintained global array
+    for (int i = 0; i < TOTAL_SD_CARDS; i++) {
+        if (sdCards[i].available) {  // Use the maintained global array
+        // if (cardsAvailableForMount[i]) {  // Use the maintained global array
             char slot_info[8];
             snprintf(slot_info, sizeof(slot_info), "%d,", i);
             strcat(status_msg, slot_info);
@@ -2912,7 +3004,7 @@ void AudioMoth_checkDiskSpaceAndMount() {
 
     /* check for mount status and mount otherwise*/
 
-    if(!sdCardMounted)     AudioMoth_autoMount();
+    // if(!sdCardMounted)     AudioMoth_autoMount();
 
     int retryCount = 0;
     do {
@@ -2921,7 +3013,7 @@ void AudioMoth_checkDiskSpaceAndMount() {
         if (fres == FR_OK) break; 
     
         // Mark SD card as unavailable
-        cardsAvailableForMount[currentMountIndex] = 0;
+        // cardsAvailableForMount[currentMountIndex] = 0;
     
         // Unmount and retry
         AudioMoth_unmount(mounted_sd_path);
@@ -2940,7 +3032,7 @@ void AudioMoth_checkDiskSpaceAndMount() {
     total_sectors = (getFreeFs->n_fatent - 2) * getFreeFs->csize;
     free_sectors = free_clusters * getFreeFs->csize;
     if(free_sectors/2 < 500) {  //if less than 500kb
-        cardsAvailableForMount[currentMountIndex] = 0; //remove that sd card from detected sd card
+        // cardsAvailableForMount[currentMountIndex] = 0; //remove that sd card from detected sd card
         AudioMoth_unmount(mounted_sd_path);
         AudioMoth_autoMount();
     }
@@ -3141,7 +3233,7 @@ bool AudioMoth_writeToFile(void *bytes, uint16_t bytesToWrite) {
 
         // If write failed, mount next available sd card
         //Mark SD card as unavailable
-        cardsAvailableForMount[currentMountIndex] = 0;
+        // cardsAvailableForMount[currentMountIndex] = 0;
     
         // Unmount and retry
         AudioMoth_unmount(mounted_sd_path);
@@ -3360,10 +3452,10 @@ static void disableEBI(void) {
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A17, gpioModeDisabled, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A18, gpioModeDisabled, 0);
     GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A19, gpioModeDisabled, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A21, gpioModeDisabled, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A22, gpioModeDisabled, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A23, gpioModeDisabled, 0);
-    GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A24, gpioModeDisabled, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A21, gpioModeDisabled, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_B, EBI_A22, gpioModeDisabled, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A23, gpioModeDisabled, 0);
+    // GPIO_PinModeSet(EBI_GPIOPORT_C, EBI_A24, gpioModeDisabled, 0);
 
     /* Disable EBI CS0-CS1 */
 
@@ -3572,7 +3664,8 @@ void AudioMoth_setupSWOForPrint(void) {
 
     ITM->TER  = 0x0;
 
-    ITM->TCR  = 0x0;
+    // ITM->TCR  = 0x0001000D;
+    ITM->TCR = ITM_TCR_ITMENA_Msk | ITM_TCR_SYNCENA_Msk | ITM_TCR_TSENA_Msk | (1 << ITM_TCR_TraceBusID_Pos); 
 
     TPI->SPPR = 2;
 
@@ -3582,10 +3675,7 @@ void AudioMoth_setupSWOForPrint(void) {
 
     DWT->CTRL = 0x400003FE;
 
-    ITM->TCR  = 0x0001000D;
 
     TPI->FFCR = 0x00000100;
-
-    ITM->TER  = 0x1;
 
 }

@@ -22,6 +22,8 @@
 #include "gpsutilities.h"
 #include "gpsinterface.h"
 
+#include "pinouts.h"
+
 /* Hardware constants */
 
 #define MAGNETIC_SWITCH_GPIOPORT                gpioPortE
@@ -102,6 +104,9 @@ void GPIO_ODD_IRQHandler(void) {
     /* Handle the interrupt */
 
     if (interruptMask & (1 << MAGNETIC_SWITCH_PIN)) GPS_handleMagneticSwitchInterrupt();
+
+    /* SD CD card handle */
+    if (interruptMask & (1 << SD_CD_INT_PIN)) AudioMoth_handleSDCardInterrupt();
 
 }
 

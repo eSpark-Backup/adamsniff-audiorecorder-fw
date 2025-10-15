@@ -17,6 +17,12 @@
 #include "audioconfig.h"
 #include "digitalfilter.h"
 
+#include "microsd.h"
+#include "diskio.h"
+
+#include "tca6408a.h"
+#include "tca6424a.h"
+
 /* Useful time constants */
 
 #define MILLISECONDS_IN_SECOND                  1000
@@ -452,6 +458,17 @@ typedef struct {
 } acousticLocation_t;
 
 #pragma pack(pop)
+
+#define DEBOUNCE_TIME_MS 300        // Debounce time in milliseconds
+static uint32_t lastSDCardInterruptTime = 0;
+static uint32_t lastSDCardInterruptTimeMilliseconds = 0;
+static bool sdCardInterrupt = true;
+extern sdCards_t sdCards[TOTAL_SD_CARDS];
+
+int putchar(int c)
+{
+    return ITM_SendChar( (uint8_t)c );
+}
 
 /* Functions to format header and configuration components */
 
@@ -1478,7 +1495,7 @@ static void calculateTimeToNextEvent(uint32_t currentTime, uint32_t currentMilli
 }
 
 /* Main function */
-
+#if 1
 int main(void) {
 
     /* Initialise device */
@@ -1554,6 +1571,10 @@ int main(void) {
         }
 
     }
+
+    /* Check sd card slots */
+
+    querySDCardStatus();
 
     /* Handle the case that the switch is in USB position  */
 
@@ -2135,6 +2156,20 @@ int main(void) {
 
         AudioMoth_getTime(&currentTime, &currentMilliseconds);
 
+        /* poll TCA6424 IO expander for interrupt source and set sdcard availability */
+
+        if (sdCardInterrupt) {
+            uint32_t currentTime_sd = ((uint32_t)currentTime * 1000UL) + currentMilliseconds;
+            uint32_t SDCardInterruptTime = ((uint32_t)lastSDCardInterruptTime * 1000UL) + lastSDCardInterruptTimeMilliseconds;
+            if((currentTime_sd - SDCardInterruptTime) >= DEBOUNCE_TIME_MS) {
+                // printf("Handling SD card interrupt at %lu.%03lu\n", currentTime, currentMilliseconds);
+                
+                querySDCardStatus();
+                sdCardInterrupt = false;
+
+            }
+        }
+
         /* Handle magnetic switch event */
 
         bool magneticSwitchEvent = magneticSwitch || (magneticSwitchEnabled && GPS_isMagneticSwitchClosed());
@@ -2220,6 +2255,7 @@ int main(void) {
     }
 
 }
+#endif
 
 #if 1
 #include "ff.h"
@@ -2414,10 +2450,13 @@ int main(void) {
 }
 #endif
 
-#if 0
+#if 0   /* SD card mount test */
 int main(void) {
+
     AudioMoth_initialise();
+    // AudioMoth_setupSWOForPrint();
     AudioMoth_enableExternalSRAM();
+    AudioMoth_delay(2000);
     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
  
     int16_t *sram = (int16_t *)AM_EXTERNAL_SRAM_START_ADDRESS;
@@ -2469,111 +2508,128 @@ int main(void) {
 }
 #endif
 
-// int main(void) {
-//     AudioMoth_initialise();
-//     AudioMoth_enableExternalSRAM();
-//     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);    
+#if 0       // SWO test
+int main(void)
+{
+    AudioMoth_setupSWOForPrint();  // Initialize SWO
 
-//     sram = (int16_t*)AM_EXTERNAL_SRAM_START_ADDRESS;
-//     // Fill SRAM with test pattern (0x7d7d)
-//     memset(sram, 125, SRAM_TOTAL_SIZE * 2);
+    while (1)
+    {
+        // ITM_SendChar('A');  // Send 'A' to SWO
+        printf("Hello, SWO!\n");
+        for (volatile int i = 0; i < 100000; i++);  // Delay for a while
+    }
+}
+#endif
 
-//     AudioMoth_openFile("SRAM_TEST.txt");
+#if 0
+int main(void) {
+    AudioMoth_initialise();
+    AudioMoth_enableExternalSRAM();
+    AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);    
 
-//     static int count, fcount;
-//     char printBuffer[128];
+    sram = (int16_t*)AM_EXTERNAL_SRAM_START_ADDRESS;
+    // Fill SRAM with test pattern (0x7d7d)
+    memset(sram, 125, SRAM_TOTAL_SIZE * 2);
 
-//     for (int chunk = 0; chunk < CHUNK_COUNT; chunk++) {
-//         count = 0;
-//         fcount = 0;
-//         int16_t* chunk_start = sram + (chunk * CHUNK_SIZE);
+    AudioMoth_openFile("SRAM_TEST.txt");
 
-//         // Verify test pattern for this chunk
-//         for (int16_t i = 0; i < CHUNK_SIZE; i++) {
-//             if (chunk_start[i] == 0x7d7d) {
-//                 count++;
-//                 AudioMoth_setGreenLED(true);
-//             } else {
-//                 fcount++;
-//                 AudioMoth_setRedLED(true);
-//                 AudioMoth_setRedLED(false);
-//             }
-//             AudioMoth_setGreenLED(false);
+    static int count, fcount;
+    char printBuffer[128];
+
+    for (int chunk = 0; chunk < CHUNK_COUNT; chunk++) {
+        count = 0;
+        fcount = 0;
+        int16_t* chunk_start = sram + (chunk * CHUNK_SIZE);
+
+        // Verify test pattern for this chunk
+        for (int16_t i = 0; i < CHUNK_SIZE; i++) {
+            if (chunk_start[i] == 0x7d7d) {
+                count++;
+                AudioMoth_setGreenLED(true);
+            } else {
+                fcount++;
+                AudioMoth_setRedLED(true);
+                AudioMoth_setRedLED(false);
+            }
+            AudioMoth_setGreenLED(false);
             
-//             if (i % 1024 == 0) AudioMoth_feedWatchdog();
-//         }
+            if (i % 1024 == 0) AudioMoth_feedWatchdog();
+        }
 
-//         snprintf(printBuffer, sizeof(printBuffer), "Chunk %d: Success %d, Fail %d\n", chunk + 1, count, fcount);
-//         AudioMoth_writeToFile(printBuffer, strlen(printBuffer));
-//     }
+        snprintf(printBuffer, sizeof(printBuffer), "Chunk %d: Success %d, Fail %d\n", chunk + 1, count, fcount);
+        AudioMoth_writeToFile(printBuffer, strlen(printBuffer));
+    }
 
-//     AudioMoth_setBothLED(true);
-//     AudioMoth_closeFile();
-// }
+    AudioMoth_setBothLED(true);
+    AudioMoth_closeFile();
+}
+#endif
 
-
-// int main(void) {
-//     AudioMoth_initialise();
-//     static bool appendStart = false;
+#if 0
+int main(void) {
+    AudioMoth_initialise();
+    static bool appendStart = false;
     
-//     // Ensure the file system is available
-//     AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
-//     AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
+    // Ensure the file system is available
+    AudioMoth_enableFileSystem(AM_SD_CARD_NORMAL_SPEED);
+    AudioMoth_writeErrorCbSet(AudioMoth_writeWavInfo);
 
-//     // AudioMoth_unmount("0:");
-//     // AudioMoth_mount("9:");
+    // AudioMoth_unmount("0:");
+    // AudioMoth_mount("9:");
 
-//     int num = 1;
-//     char filePath[] = "9:/heheFolder.txt";
-//     // Open file in append mode
-//     if (!AudioMoth_openFile(filePath)) {
-//         indicateError(20);
-//     }
+    int num = 1;
+    char filePath[] = "9:/heheFolder.txt";
+    // Open file in append mode
+    if (!AudioMoth_openFile(filePath)) {
+        indicateError(20);
+    }
     
-//     while (num <= 1000000) {  // Limit loop for testing; remove for continuous operation
+    while (num <= 1000000) {  // Limit loop for testing; remove for continuous operation
         
-//         if(appendStart) {
-//             if (!AudioMoth_appendStartFile(filePath)) {
-//                 indicateError(5);
-//             }
-//         }
-//         else {
-//             if (!AudioMoth_appendFile(filePath)) {
-//                 indicateError(20);
-//             }
-//         }
-//         AudioMoth_setRedLED(true);
-//         AudioMoth_delay(25);
+        if(appendStart) {
+            if (!AudioMoth_appendStartFile(filePath)) {
+                indicateError(5);
+            }
+        }
+        else {
+            if (!AudioMoth_appendFile(filePath)) {
+                indicateError(20);
+            }
+        }
+        AudioMoth_setRedLED(true);
+        AudioMoth_delay(25);
         
-//         char dummyDataBuffer[64];
+        char dummyDataBuffer[64];
         
-//         // uint32_t total_space = AudioMoth_getTotalSpace();
-//         // uint32_t free_space = AudioMoth_getFreeSpace();
+        // uint32_t total_space = AudioMoth_getTotalSpace();
+        // uint32_t free_space = AudioMoth_getFreeSpace();
 
-//         // snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
-//         snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "%s\n", get_sd_card_mount_status());
+        // snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "Total space: %lu bytes, Free space: %lu bytes\n", total_space, free_space);
+        snprintf(dummyDataBuffer, sizeof(dummyDataBuffer), "%s\n", get_sd_card_mount_status());
         
-//         bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
-//         if (!result) {
-//             // int errorCode = AudioMoth_writeToFileDebug(dummyDataBuffer, strlen(dummyDataBuffer));
-//             indicateError(3);
-//             appendStart = true;
-//         }
-//         else {
-//             // indicateError(4);
-//             appendStart = false;
-//         }
+        bool result = AudioMoth_writeToFile(dummyDataBuffer, strlen(dummyDataBuffer));
+        if (!result) {
+            // int errorCode = AudioMoth_writeToFileDebug(dummyDataBuffer, strlen(dummyDataBuffer));
+            indicateError(3);
+            appendStart = true;
+        }
+        else {
+            // indicateError(4);
+            appendStart = false;
+        }
         
-//         // Close file after writing
-//         AudioMoth_closeFile();
+        // Close file after writing
+        AudioMoth_closeFile();
         
-//         num++;
-//         AudioMoth_setRedLED(false);
-//         AudioMoth_delay(25);
-//     }
+        num++;
+        AudioMoth_setRedLED(false);
+        AudioMoth_delay(25);
+    }
     
-//     return 0;
-// }
+    return 0;
+}
+#endif
 #endif
 
 
@@ -2760,6 +2816,89 @@ inline void AudioMoth_handleSwitchInterrupt() {
     AudioConfig_cancelAudioConfiguration();
 
     GPS_cancelTimeSetting(GPS_CANCEL_BY_SWITCH);
+
+}
+
+inline void AudioMoth_handleSwitchInterrupt_ioExpander() {
+
+    switchPositionChanged = true;
+
+    uint8_t bank_status = 0;
+    TCA6408A_readAll(&bank_status);
+    // printf("TCA6408A bank status: 0x%02X\n", bank_status);
+
+    AudioConfig_cancelAudioConfiguration();
+
+    GPS_cancelTimeSetting(GPS_CANCEL_BY_SWITCH);
+
+}
+
+inline void querySDCardStatus() {
+    static uint16_t lastCardState = 0x0000; // assume all sdcard slots are empty initially
+
+    uint8_t banks[2] = {0};
+    TCA6424A_readAll(&banks[0], &banks[0], &banks[1]);          // discard bank 0 (CS lines only)
+
+    uint16_t inputs = ((uint16_t)banks[1] << 8) | banks[0];
+    uint16_t currentState = (inputs & SD_CD_BITMASK) >> 4;      // shift to LSB for easier handling
+
+    // printf("SD card state changed: 0x%04X -> 0x%04X\n", lastCardState, currentState);
+
+    uint16_t changed = currentState ^ lastCardState;
+
+    for (uint8_t i = 0; i < TOTAL_SD_CARDS; i++) {
+        if (changed == 0) continue; // no state change
+
+        uint16_t mask = (1 << i);
+        
+        if (changed & mask) {
+            if (currentState & mask) {
+                // Card inserted (assuming HIGH means inserted)
+                sdCards[i].available = true;
+
+                // char path[5];
+                // sprintf(path, "%d:", i);
+                // // printf("Mounting SD card at %s\n", path);
+
+                // if (disk_initialize(i) == RES_OK) {
+                //     // printf("Disk %d initialized successfully. Now mounting FS\n", i);
+                //     // f_mount(&fs[i], path, 1);
+                //     if (f_mount(&sdCards[i].fs, path, 1) == FR_OK) {
+                //         sdCards[i].mounted = true;
+                //     }
+                // }
+                // // printf("Disk %d mount status: %s\n", i, sdCards[i].mounted ? "Mounted" : "Not Mounted");
+                // AudioMoth_setRedLED(true);
+                // AudioMoth_delay(500);
+                // AudioMoth_setRedLED(false);
+
+            } else {
+                // Card removed
+                sdCards[i].available = false;
+
+                char path[5];
+                sprintf(path, "%d:", i);
+
+                // f_mount(NULL, path, 0);        // Unmount
+                if (f_mount(NULL, path, 0) == FR_OK) {
+                    sdCards[i].mounted = false;
+                }
+                disk_ioctl(i, CTRL_INVALIDATE, 0); // Mark as uninitialized
+            }
+        }
+    }
+
+    lastCardState = currentState;
+}
+
+inline void AudioMoth_handleSDCardInterrupt() {
+
+    /* Save timestamp and trigger thE flag */
+
+    AudioMoth_getTime(&lastSDCardInterruptTime, &lastSDCardInterruptTimeMilliseconds);
+    sdCardInterrupt = true;
+
+    // printf("SD card interrupt at %lu.%03lu\n", lastSDCardInterruptTime, lastSDCardInterruptTimeMilliseconds);
 
 }
 

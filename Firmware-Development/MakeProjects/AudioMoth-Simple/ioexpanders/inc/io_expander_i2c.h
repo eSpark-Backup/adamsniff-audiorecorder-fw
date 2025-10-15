@@ -4,7 +4,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TCA6424A_I2C_DEVICE I2C0
+#define IO_EXPANDER_DEVICE      I2C0
 
 void I2Cdev_Init();
 int8_t I2Cdev_readBytes(uint8_t devAddr, uint8_t regAddr, uint8_t length, uint8_t *data);

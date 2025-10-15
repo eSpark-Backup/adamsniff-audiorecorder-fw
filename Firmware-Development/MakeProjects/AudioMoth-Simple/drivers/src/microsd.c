@@ -26,7 +26,7 @@
 #include "microsd.h"
 #include "em_cmu.h"
 #include "em_usart.h"
-#include "tca6424a.h"
+#include <stdio.h>
 
 /**************************************************************************//**
  * @addtogroup MicroSd
@@ -36,6 +36,10 @@
 /** @cond DO_NOT_INCLUDE_WITH_DOXYGEN */
 static uint32_t timeOut, xfersPrMsec;
 static bool doubleSpiClkFast;
+
+// extern volatile bool sdCardInserted[TOTAL_SD_CARDS];
+
+static WORD cs_state = 0xFFFF; // all deselected initially
 
 /**************************************************************************//**
  * @brief Wait for micro SD card ready.
@@ -68,6 +72,7 @@ void MICROSD_Init(bool *sd_status)
   USART_InitSync_TypeDef init = USART_INITSYNC_DEFAULT;
 
   /* Enabling clock to USART 0 */
+  // printf("Initializing SPI\n");
   CMU_ClockEnable(MICROSD_CMUCLOCK, true);
   CMU_ClockEnable(cmuClock_GPIO, true);
 
@@ -89,20 +94,23 @@ void MICROSD_Init(bool *sd_status)
   /* IO configuration */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_MOSIPIN, gpioModePushPull, 0);  /* MOSI */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_MISOPIN, gpioModeInputPull, 1); /* MISO */
-//   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CSPIN, gpioModePushPull, 1);    /* CS */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CLKPIN, gpioModePushPull, 0);   /* CLK */
+  //   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CSPIN, gpioModePushPull, 1);    /* CS */
+  TCA6424A_writeAll(0xFF, 0xFF, 0xFF); // set all CS pins high
+
+  printf("SPI initialized\n");
   
-  TCA6424A_initialize();
-  uint8_t direction[3] = {0x00, 0xF0, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
-  // TCA6424A_setAllDirectionSingle(direction);
-  TCA6424A_setBankDirection(0, direction[0]);
-  TCA6424A_setBankDirection(1, direction[1]);
-  TCA6424A_setBankDirection(2, direction[2]);
-  uint8_t states[3] = {0xFF, 0xFF, 0xFF}; // Pulled High : All CS Pins, Input pins will be ignored
-  // TCA6424A_writeAllSingle(states);
-  TCA6424A_writeBank(0, states[0]);
-  TCA6424A_writeBank(1, states[1]);
-  TCA6424A_writeBank(2, states[2]);
+  // TCA6424A_initialize();
+  // uint8_t direction[3] = {0x00, 0xF0, 0xFF}; // 0 - 11 as Outputs 12 - 13 as inputs
+  // // TCA6424A_setAllDirectionSingle(direction);
+  // TCA6424A_setBankDirection(0, direction[0]);
+  // TCA6424A_setBankDirection(1, direction[1]);
+  // TCA6424A_setBankDirection(2, direction[2]);
+  // uint8_t states[3] = {0xFF, 0xFF, 0xFF}; // Pulled High : All CS Pins, Input pins will be ignored
+  // // TCA6424A_writeAllSingle(states);
+  // TCA6424A_writeBank(0, states[0]);
+  // TCA6424A_writeBank(1, states[1]);
+  // TCA6424A_writeBank(2, states[2]);
 
   // AudioMoth_delay(10000);
 
@@ -158,8 +166,9 @@ void MICROSD_Deinit(void)
   /* IO configuration (USART 0, Location #0) */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_MOSIPIN, gpioModeDisabled, 0);  /* MOSI */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_MISOPIN, gpioModeDisabled, 0);  /* MISO */
-//   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CSPIN, gpioModeDisabled, 0);    /* CS */
   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CLKPIN, gpioModeDisabled, 0);   /* Clock */
+  //   GPIO_PinModeSet(MICROSD_GPIOPORT, MICROSD_CSPIN, gpioModeDisabled, 0);    /* CS */
+  TCA6424A_writeAll(0xFF, 0xFF, 0xFF); // set all CS pins high
 }
 
 /**************************************************************************//**
@@ -195,8 +204,9 @@ uint8_t MICROSD_XferSpi(uint8_t data)
  *****************************************************************************/
 void MICROSD_Deselect(BYTE drv)
 {
-//   GPIO->P[MICROSD_GPIOPORT].DOUTSET = 1 << MICROSD_CSPIN;   /* CS pin high. */
-  TCA6424A_writePin(drv, 1); // drv no. is mapped with CS pin no.
+  //   GPIO->P[MICROSD_GPIOPORT].DOUTSET = 1 << MICROSD_CSPIN;   /* CS pin high. */
+  cs_state |= (1 << drv);
+  TCA6424A_writeAll((BYTE)(cs_state & 0xFF), (BYTE)((cs_state >> 8) & 0xFF), 0xFF);
   MICROSD_XferSpi(0xff);
 }
 
@@ -206,11 +216,13 @@ void MICROSD_Deselect(BYTE drv)
  *****************************************************************************/
 int MICROSD_Select(BYTE drv)
 {
-//   GPIO->P[MICROSD_GPIOPORT].DOUTCLR = 1 << MICROSD_CSPIN;   /* CS pin low. */
-  TCA6424A_writePin(drv, 0); // drv no. is mapped with CS pin no.
+  //   GPIO->P[MICROSD_GPIOPORT].DOUTCLR = 1 << MICROSD_CSPIN;   /* CS pin low. */
+  cs_state = 0xFFFF & ~(1 << drv);  // select target card
+  TCA6424A_writeAll((BYTE)(cs_state & 0xFF), (BYTE)((cs_state >> 8) & 0xFF), 0xFF);
+  AudioMoth_delay(1);
   if (WaitReady() != 0xFF) {
-    MICROSD_Deselect(drv);
-    return 0;
+      MICROSD_Deselect(drv);
+      return 0;
   }
   return 1;
 }

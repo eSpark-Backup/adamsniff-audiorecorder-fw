@@ -23,26 +23,38 @@ static UINT CardType;
 
 ---------------------------------------------------------------------------*/
 
+// extern volatile bool sdCardInserted[TOTAL_SD_CARDS];
+extern sdCards_t sdCards[TOTAL_SD_CARDS];
+
 /*-----------------------------------------------------------------------*/
 /* Initialize Disk Drive                                                 */
 /*-----------------------------------------------------------------------*/
 
 DSTATUS disk_initialize (
-  BYTE drv  /* Physical drive nmuber (0) */
+  BYTE drv  /* Physical drive number (0) */
 )
 {
   BYTE n, cmd, ty, ocr[4];
 
-//   if (drv) return STA_NOINIT;                   /* Supports only single drive */
-  if (stat & STA_NODISK) return stat;           /* No card in the socket */
+  if (drv >= TOTAL_SD_CARDS) return STA_NOINIT; /* Supports upto 12 sd cards */
+  // if (!sdCardInserted[drv]) return STA_NODISK;  /* No card in the socket */
+  if (!sdCards[drv].available) return STA_NODISK;  /* No card in the socket */
 
+  MICROSD_Select(drv);
+
+  // printf("turning spi on\n");
   MICROSD_PowerOn();                            /* Force socket power on */
+  // printf("spi clk slow\n");
   MICROSD_SpiClkSlow();                         /* Start with low SPI clock. */
   for (n = 10; n; n--) MICROSD_XferSpi(0xff);   /* 80 dummy clocks */
+  // printf("80 dummy clocks\n");
 
   ty = 0;
+  // printf("send cmd0\n");
   if (MICROSD_SendCmd(drv, CMD0, 0) == 1) {          /* Enter Idle state */
+    // printf("cmd0 ok\n");
     MICROSD_TimeOutSet(1000);                   /* Initialization timeout of 1000 msec */
+    // printf("send cmd8\n");
     if (MICROSD_SendCmd(drv, CMD8, 0x1AA) == 1) {    /* SDv2? */
       for (n = 0; n < 4; n++) ocr[n] = MICROSD_XferSpi(0xff); /* Get trailing return value of R7 resp */
       if (ocr[2] == 0x01 && ocr[3] == 0xAA) {   /* The card can work at vdd range of 2.7-3.6V */
@@ -63,6 +75,7 @@ DSTATUS disk_initialize (
         ty = 0;
     }
   }
+  // printf("cmd0 failed\n");
   CardType = ty;
   MICROSD_Deselect(drv);
 
@@ -85,7 +98,12 @@ DSTATUS disk_status (
   BYTE drv                        /* Physical drive nmuber (0) */
 )
 {
-//   if (drv) return STA_NOINIT;     /* Supports only single drive */
+  if (drv >= TOTAL_SD_CARDS) return STA_NOINIT;             /* Supports upto 12 sd cards */
+  // if (!sdCardInserted[drv]) {
+  if (!sdCards[drv].available) {
+    return STA_NODISK;
+  }
+
   return stat;
 }
 
@@ -100,9 +118,11 @@ DRESULT disk_read (
   BYTE count      /* Sector count (1..255) */
 )
 {
-//   if (drv || !count) return RES_PARERR;
+  if (drv >= 12) return STA_NODISK;             /* Supports upto 12 sd cards */
   if (!count) return RES_PARERR;
   if (stat & STA_NOINIT) return RES_NOTRDY;
+
+  MICROSD_Select(drv);
 
   if (!(CardType & CT_BLOCK)) sector *= 512;  /* Convert to byte address if needed */
 
@@ -137,10 +157,12 @@ DRESULT disk_write (
   BYTE count          /* Sector count (1..255) */
 )
 {
-//   if (drv || !count) return RES_PARERR;
+  if (drv >= 12) return STA_NOINIT;             /* Supports upto 12 sd cards */
   if (!count) return RES_PARERR;
   if (stat & STA_NOINIT) return RES_NOTRDY;
   if (stat & STA_PROTECT) return RES_WRPRT;
+
+  MICROSD_Select(drv);
 
   if (!(CardType & CT_BLOCK)) sector *= 512;  /* Convert to byte address if needed */
 
@@ -176,13 +198,13 @@ DRESULT disk_ioctl (
   void *buff    /* Buffer to send/receive data block */
 )
 {
+  if (drv >= 12) return STA_NOINIT;             /* Supports upto 12 sd cards */
+  if (stat & STA_NOINIT) return RES_NOTRDY;
+  
   DRESULT res;
   BYTE n, csd[16], *ptr = buff;
   DWORD csize;
 
-
-//   if (drv) return RES_PARERR;
-  if (stat & STA_NOINIT) return RES_NOTRDY;
 
   res = RES_ERROR;
   switch (ctrl) {

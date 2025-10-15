@@ -174,7 +174,7 @@ USB_Status_TypeDef USBDHAL_CoreInit(uint32_t totalRxFifoSize,
 
 #if !defined(USB_VBUS_SWITCH_NOT_PRESENT)
   CMU_ClockEnable(cmuClock_GPIO, true);
-  GPIO_PinModeSet(gpioPortF, 5, gpioModePushPull, 0);   /* Enable VBUSEN pin */
+  // GPIO_PinModeSet(gpioPortF, 5, gpioModePushPull, 0);   /* Enable VBUSEN pin */
   USB->ROUTE = USB_ROUTE_PHYPEN | USB_ROUTE_VBUSENPEN;  /* Enable PHY pins.  */
 #else
   USB->ROUTE = USB_ROUTE_PHYPEN;                        /* Enable PHY pins.  */
@@ -536,7 +536,7 @@ USB_Status_TypeDef USBHHAL_CoreInit(uint32_t rxFifoSize,
   ptxFifoSize  /= 4;
 
   CMU_ClockEnable(cmuClock_GPIO, true);
-  GPIO_PinModeSet(gpioPortF, 5, gpioModePushPull, 0);   /* Enable VBUSEN pin */
+  // GPIO_PinModeSet(gpioPortF, 5, gpioModePushPull, 0);   /* Enable VBUSEN pin */
 
 #if (USB_VBUSOVRCUR_PORT != USB_VBUSOVRCUR_PORT_NONE)
   /* Enable VBUS overcurrent flag pin. */

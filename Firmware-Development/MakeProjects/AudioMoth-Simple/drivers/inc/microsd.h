@@ -27,6 +27,9 @@
 #include "microsdconfig.h"
 #include "em_gpio.h"
 #include "integer.h"
+#include "tca6424a.h"
+#include "ffconf.h"
+#include "ff.h"
 
 /***************************************************************************//**
  * @addtogroup kitdrv
@@ -37,6 +40,16 @@
  * @addtogroup MicroSd
  * @{
  ******************************************************************************/
+
+ // Bitmask of all CD inputs (assuming each SD CD pin maps to a known IO expander bit)
+#define SD_CD_BITMASK   0xFFF0  // higher 12 bits correspond to 12 SD CD lines
+#define TOTAL_SD_CARDS  FF_VOLUMES
+
+typedef struct {
+    bool available;
+    bool mounted;
+    FATFS fs;
+} sdCards_t;
 
 #ifdef __cplusplus
 extern "C" {
