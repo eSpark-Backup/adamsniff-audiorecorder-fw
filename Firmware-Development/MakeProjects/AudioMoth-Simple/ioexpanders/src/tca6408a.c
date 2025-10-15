@@ -34,11 +34,12 @@ void TCA6408A_initialize(void)
     I2Cdev_Init();
 
     
-    // TCA6408A_setPinDirection(TCA6408A_P1, TCA6408A_OUTPUT); // P0.1 as output (GREEN LED)
-    // TCA6408A_setPinDirection(TCA6408A_P2, TCA6408A_OUTPUT); // P0.2 as output (RED LED)
+    TCA6408A_setPinDirection(TCA6408A_P0, TCA6408A_INPUT); // P0.0 as input  (SWITCH PIN)
+    TCA6408A_setPinDirection(TCA6408A_P1, TCA6408A_OUTPUT); // P0.1 as output (GREEN LED)
+    TCA6408A_setPinDirection(TCA6408A_P2, TCA6408A_OUTPUT); // P0.2 as output (RED LED)
 
-    // TCA6408A_writePin(TCA6408A_P1, TCA6408A_HIGH); // turn off GREEN LED
-    // TCA6408A_writePin(TCA6408A_P2, TCA6408A_HIGH); // turn off GREEN LED
+    TCA6408A_writePin(TCA6408A_P1, TCA6408A_LOW); // turn off GREEN LED
+    TCA6408A_writePin(TCA6408A_P2, TCA6408A_LOW); // turn off GREEN LED
 }
 
 /* Verify I2C connection */

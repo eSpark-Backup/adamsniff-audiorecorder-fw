@@ -4,18 +4,10 @@
  * November 2020
  *****************************************************************************/
 
-/*
- * MEMORY
- * {
- * 	FLASH (rx) : ORIGIN = 0x4000, LENGTH = 0x3C000    // 240k
- * 	RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000  // 32k
- * }
- */
-
 MEMORY
 {
-    FLASH (rx) : ORIGIN = 0x00000000, LENGTH = 0x40000  /* adapt to flash size */
-    RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000    /* 32k */
+	FLASH (rx) : ORIGIN = 0x4000, LENGTH = 0x3C000 /* 240k */
+	RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 0x8000 /* 32k */
 }
 
 ENTRY(Reset_Handler)

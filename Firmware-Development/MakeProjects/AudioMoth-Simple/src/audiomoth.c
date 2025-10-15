@@ -382,23 +382,16 @@ void AudioMoth_initialise() {
 
     TCA6424A_initialize();
 
-    /* Enable LEDs output*/
-
-    TCA6408A_setPinDirection(TCA6408A_P1, TCA6408A_OUTPUT); // P0.1 as output (GREEN LED)
-    TCA6408A_setPinDirection(TCA6408A_P2, TCA6408A_OUTPUT); // P0.2 as output (RED LED)
-    // TCA6408A_writePin(TCA6408A_P1, TCA6408A_HIGH); // turn on GREEN LED
-    // TCA6408A_writePin(TCA6408A_P2, TCA6408A_HIGH); // turn on RED LED
-
     /* Enable interrupt on USB switch position to wake from EM2 */
 
     GPIO_PinModeSet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, gpioModeInput, 0);
-    // GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
-    TCA6408A_setPinDirection(TCA6408A_P0, TCA6408A_INPUT); // P0.0 as input (mode switch)
-
     GPIO_IntConfig(SWITCH_1_GPIOPORT, SWITCH_1_SENSE, true, true, true);
-    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, true, true, true);        // switch mode interrupt via TCA6408 expander ic
-    
-    GPIO_IntConfig(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, true, true, true);        // SD card detect interrupt via TCA6424 expander ic
+
+    GPIO_PinModeSet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, gpioModeInput, 0);
+    GPIO_IntConfig(SWITCH_2_GPIOPORT, SWITCH_2_SENSE, false, true, true);        // switch mode interrupt via TCA6408 expander ic
+
+    GPIO_PinModeSet(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, gpioModeInput, 0);       // SD card detect interrupt pin setup as input
+    GPIO_IntConfig(SD_CD_INT_GPIOPORT, SD_CD_INT_PIN, false, true, true);        // SD card detect interrupt via TCA6424 expander ic
 
     NVIC_ClearPendingIRQ(GPIO_EVEN_IRQn);
 
@@ -522,9 +515,8 @@ void GPIO_EVEN_IRQHandler(void) {
 
     /* Handle the interrupt */
 
-    // if (interruptMask & ((1 << SWITCH_1_SENSE) | (1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
-
-    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_1_SENSE))) AudioMoth_handleSwitchInterrupt();
+    if (interruptMask & ((1 << SWITCH_2_SENSE))) AudioMoth_handleSwitchInterrupt_ioExpander();
 
     if (interruptMask & ((1 << JCK_DETECT) | (1 << JCK_DETECT_ALT))) AudioMoth_handleMicrophoneChangeInterrupt();
 
@@ -970,17 +962,17 @@ static void setupOpAmp(AM_gainRange_t gainRange, AM_gainSetting_t gainSetting) {
     static OPAMP_ResSel_TypeDef opamp1LowGainRange[] = {opaResSelR2eq0_33R1, opaResSelR2eq0_33R1, opaResSelR2eqR1, opaResSelR2eqR1, opaResSelR2eqR1};
     static OPAMP_ResSel_TypeDef opamp2LowGainRange[] = {opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eqR1, opaResSelR1eq1_67R1, opaResSelR2eq2R1};
 
-    // OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
-    // OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
+    OPAMP_ResSel_TypeDef *opamp1Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp1LowGainRange : opamp1NormalGainRange;
+    OPAMP_ResSel_TypeDef *opamp2Gain = gainRange == AM_LOW_GAIN_RANGE ? opamp2LowGainRange : opamp2NormalGainRange;
 
-    OPAMP_ResSel_TypeDef *opamp1Gain = opamp1NormalGainRange;
-    OPAMP_ResSel_TypeDef *opamp2Gain = opamp1NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp1Gain = opamp1NormalGainRange;
+    // OPAMP_ResSel_TypeDef *opamp2Gain = opamp1NormalGainRange;
 
     // OPAMP_ResSel_TypeDef *opamp1Gain = opamp1LowGainRange;
     // OPAMP_ResSel_TypeDef *opamp2Gain = opamp2LowGainRange;
 
-    // uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
-    uint32_t index = AM_GAIN_HIGH;
+    uint32_t index = MAX(AM_GAIN_LOW, MIN(gainSetting, AM_GAIN_HIGH));
+    // uint32_t index = AM_GAIN_HIGH;
     // uint32_t index = AM_GAIN_LOW;
 
     opa1Init.resSel = opamp1Gain[index];
@@ -1065,8 +1057,8 @@ static void setupADC(uint32_t clockDivider, uint32_t acquisitionCycles, uint32_t
 
     if (hardwareVersion < AM_VERSION_4) {
 
-        // adcSingleInit.input = adcSingleInpCh0Ch1;
-        adcSingleInit.input = adcSingleInpCh7;
+        adcSingleInit.input = adcSingleInpCh0Ch1;
+        // adcSingleInit.input = adcSingleInpCh7;
 
     } else {
 
@@ -2346,20 +2338,19 @@ AM_switchPosition_t AudioMoth_getSwitchPosition(void) {
 
     AM_hardwareVersion_t hardwareVersion = BURTC_RetRegGet(AM_BURTC_HARDWARE_VERSION);
 
-    // return AM_SWITCH_USB;
-
     if (GPIO_PinInGet(SWITCH_1_GPIOPORT, SWITCH_1_SENSE) == 0) return AM_SWITCH_DEFAULT;
 
     if (hardwareVersion < AM_VERSION_3) {
 
-        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
         if (TCA6408A_readPin(TCA6408A_P0) == 1)  return AM_SWITCH_USB;
+        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_USB;
 
         return AM_SWITCH_CUSTOM;
 
     } else {
 
-        if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
+        if (TCA6408A_readPin(TCA6408A_P0) == 1)  return AM_SWITCH_CUSTOM;
+        // if (GPIO_PinInGet(SWITCH_2_GPIOPORT, SWITCH_2_SENSE) == 1)  return AM_SWITCH_CUSTOM;
 
         return AM_SWITCH_USB;
 

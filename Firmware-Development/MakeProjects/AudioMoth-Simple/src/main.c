@@ -496,6 +496,14 @@ static void setupAndStartMicrophoneSamples(bool useDefaultSetting, bool useDefau
 
 inline void AudioMoth_handleSwitchInterrupt() { }
 
+inline void AudioMoth_handleSwitchInterrupt_ioExpander() {
+
+    uint8_t bank_status = 0;
+    TCA6408A_readAll(&bank_status);
+    // printf("TCA6408A bank status: 0x%02X\n", bank_status);
+
+}
+
 inline void AudioMoth_handleMicrophoneInterrupt(int16_t sample) { }
 
 inline void AudioMoth_handleMicrophoneChangeInterrupt() { 

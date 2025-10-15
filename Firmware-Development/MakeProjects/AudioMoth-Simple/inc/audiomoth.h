@@ -61,6 +61,7 @@ extern void AudioMoth_timezoneRequested(int8_t *timezoneHours, int8_t *timezoneM
 /* Interrupt handlers */
 
 extern void AudioMoth_handleSwitchInterrupt(void);
+extern void AudioMoth_handleSwitchInterrupt_ioExpander(void);
 extern void AudioMoth_handleMicrophoneChangeInterrupt(void);
 extern void AudioMoth_handleMicrophoneInterrupt(int16_t sample);
 extern void AudioMoth_handleDirectMemoryAccessInterrupt(bool isPrimaryBuffer, int16_t **nextBuffer);
